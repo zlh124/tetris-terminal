@@ -1,11 +1,11 @@
 import curses
 import sys
 
-from .pytris import Pytris
+from .tetris import Tetris
 
 
 def wrapper(stdscr: curses.window):
-    tetris = Pytris(stdscr)
+    tetris = Tetris(stdscr)
     tetris.main()
 
 

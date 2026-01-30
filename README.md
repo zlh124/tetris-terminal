@@ -1,8 +1,9 @@
 ![gameplay](./gameplay.gif)  
-# Tetris game in python
+# Tetris Terminal🎮
+A terminal-based Tetris game written in Python using the `curses` library.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)]()  
-This is a simple tetris game written in python, that can be played in the terminal.
 
 ### Features
 - Classic Tetris gameplay with 7 standard tetrominoes
@@ -12,17 +13,11 @@ This is a simple tetris game written in python, that can be played in the termin
 ### Platform Support
 Based on Python's [`curses`](https://docs.python.org/3/library/curses.html) module:
 - ✅ **Linux/macOS**: Works out of the box
-- ⚠️ **Windows**: Requires [`windows-curses`](https://pypi.org/project/windows-curses/) (auto-installed via dependencies)
+- ⚠️ **Windows**: Not supported yet
 
 ### Installation & Usage
-- Using [uv](https://github.com/astral-sh/uv) (recommended):
 ```bash
-uv pip install -e .
-pytris
-```
-- Using pip (alternative):
-```bash
-pip install -e .
+pip install tetris-terminal
 tetris
 ```
 

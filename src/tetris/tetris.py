@@ -7,7 +7,7 @@ from copy import copy
 from random import randint, shuffle
 
 
-class Pytris:
+class Tetris:
     x = 431424
     y = 598356
     r = 427089
