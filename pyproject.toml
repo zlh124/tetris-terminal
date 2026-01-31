@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tetris-terminal"
-version = "0.0.1-alpha3"
+version = "0.0.1"
 description = "A tetris game runs in the terminal"
 readme = "README.md"
 requires-python = ">=3.8"
