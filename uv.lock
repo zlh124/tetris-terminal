@@ -1,8 +1,33 @@
 version = 1
-revision = 3
-requires-python = ">=3.9"
+revision = 2
+requires-python = ">=3.8"
 
 [[package]]
-name = "tetris"
-version = "0.0.1"
+name = "tetris-terminal"
+version = "0.0.1a3"
 source = { editable = "." }
+dependencies = [
+    { name = "windows-curses", marker = "sys_platform == 'win32'" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "windows-curses", marker = "sys_platform == 'win32'" }]
+
+[[package]]
+name = "windows-curses"
+version = "2.4.1"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/15/34/e70815e7ae6f157c00121180a607dbcdc82acfd949c70bba28c45d206dec/windows_curses-2.4.1-cp310-cp310-win32.whl", hash = "sha256:53d711e07194d0d3ff7ceff29e0955b35479bc01465d46c3041de67b8141db2f" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/a6/1d/1bb512c445af24fb0a3dccf9537c8727bba5920e69539227b87f5351f608/windows_curses-2.4.1-cp310-cp310-win_amd64.whl", hash = "sha256:325439cd4f37897a1de8a9c068a5b4c432f9244bf9c855ee2fbeb3fa721a770c" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/74/b3/46a2508fff83b5affb5a311797c584c494b4b0c4c8796a1afa2c1b1e03ac/windows_curses-2.4.1-cp311-cp311-win32.whl", hash = "sha256:4fa1a176bfcf098d0c9bb7bc03dce6e83a4257fc0c66ad721f5745ebf0c00746" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/50/29/fd7c0c80177d8df55f841504a5f332b95b0002c80f82055913b6caac94e6/windows_curses-2.4.1-cp311-cp311-win_amd64.whl", hash = "sha256:fd7d7a9cf6c1758f46ed76b8c67f608bc5fcd5f0ca91f1580fd2d84cf41c7f4f" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/f4/99/60f34e51514c82631aa5c6d21eab88ce1701562de9844608411e39462a46/windows_curses-2.4.1-cp312-cp312-win32.whl", hash = "sha256:bdbe7d58747408aef8a9128b2654acf6fbd11c821b91224b9a046faba8c6b6ca" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/62/8f/d908bcab1954375b156a9300fa86ceccb110f39457cd6fd59c72777626ab/windows_curses-2.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:5c9c2635faf171a229caca80e1dd760ab00db078e2a285ba2f667bbfcc31777c" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/25/a0/e8d074f013117633f6b502ca123ecfc377fe0bd36818fe65e8935c91ca9c/windows_curses-2.4.1-cp313-cp313-win32.whl", hash = "sha256:05d1ca01e5199a435ccb6c8c2978df4a169cdff1ec99ab15f11ded9de8e5be26" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/2b/4b/2838a829b074a68c570d54ae0ae8539979657d3e619a4dc5a4b03eb69745/windows_curses-2.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:8cf653f8928af19c103ae11cfed38124f418dcdd92643c4cd17239c0cec2f9da" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/08/58/0a8fd30e8952ac461949e5b5177815cb70cd8e1399b9464537bd178f28b1/windows_curses-2.4.1-cp38-cp38-win32.whl", hash = "sha256:e9ce84559f80de7ec770d28c3b2991e0da51748def04e25a3c08ada727cfac2d" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/69/67/0ffc78290400740898c4d0df503c1b200dae7f31bbe6172468e590404885/windows_curses-2.4.1-cp38-cp38-win_amd64.whl", hash = "sha256:618e31458fedba2cf8105485ff00533ece780026c544142fc1647a20dc6c7641" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/5a/07/8684dabf0d8c54b2e3ffb6bbc0f0e162b0817008c0f98cca4e04f9a9e72c/windows_curses-2.4.1-cp39-cp39-win32.whl", hash = "sha256:775a2e0fefeddfdb0e00b3fa6c4f21caf9982db34df30e4e62c49caaef7b5e56" },
+    { url = "https://mirrors.aliyun.com/pypi/packages/58/de/b050bb1dc40ce48afb477198fb65abe51580c03a165492fce1e8fa61efd5/windows_curses-2.4.1-cp39-cp39-win_amd64.whl", hash = "sha256:4588213f7ef3b0c24c5cb9e309653d7a84c1792c707561e8b471d466ca79f2b8" },
+]
