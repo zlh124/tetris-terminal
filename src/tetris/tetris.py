@@ -1,4 +1,7 @@
-#!/usr/bin/python3
+"""
+tetris class definition and main game logic
+"""
+
 import curses
 import time
 
@@ -8,6 +11,10 @@ from random import randint, shuffle
 
 
 class Tetris:
+    """
+    main game class
+    """
+
     x = 431424
     y = 598356
     r = 427089
@@ -86,10 +93,7 @@ class Tetris:
         for i in range(20):
             stdscr.move(i + 1, 1)
             for j in range(10):
-                if self.board[i][j]:
-                    stdscr.attron(262176 | self.board[i][j] << 8)
-                stdscr.addstr("  ")
-                stdscr.attroff(262176 | self.board[i][j] << 8)
+                stdscr.addstr("  ", curses.color_pair(self.board[i][j]))
         stdscr.move(21, 1)
         stdscr.addstr(f"Score: {self.score}")
         stdscr.refresh()
@@ -186,14 +190,14 @@ class Tetris:
             self.frame(self.stdscr)
 
     def main(self) -> None:
-        curses.start_color()
         self.init_queue()
         for i in range(1, 8):
-            curses.init_pair(i, i, 0)
+            curses.init_pair(i, i, i)
         self.new_piece()
-        curses.resizeterm(22, 22)
-        curses.noecho()
+
+        curses.resize_term(22, 22)
         curses.curs_set(0)
+
         self.stdscr.timeout(0)
         self.stdscr.box()
         self.runloop()

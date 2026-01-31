@@ -13,7 +13,7 @@ A terminal-based Tetris game written in Python using the `curses` library.
 ### Platform Support
 Based on Python's [`curses`](https://docs.python.org/3/library/curses.html) module:
 - ✅ **Linux/macOS**: Works out of the box
-- ⚠️ **Windows**: Not supported yet
+- ✅️ **Windows**: With [`windows-curses`](https://github.com/zephyrproject-rtos/windows-curses)
 
 ### Installation & Usage
 ```bash

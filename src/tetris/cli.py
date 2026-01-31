@@ -1,7 +1,7 @@
 import curses
 import sys
 
-from .tetris import Tetris
+from tetris import Tetris
 
 
 def wrapper(stdscr: curses.window):
