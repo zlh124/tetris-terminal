@@ -11,3 +11,5 @@ wheels/
 
 # ide folders
 .vscode
+
+private/
