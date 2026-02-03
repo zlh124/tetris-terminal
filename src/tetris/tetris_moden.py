@@ -1,12 +1,48 @@
 import curses
 import random
 
-from collections import deque
+from collections import defaultdict, deque
 from enum import Enum
 import time
-from typing import Deque
 
 EMPTY = 0
+
+# keymap
+MOVE_LEFT = [curses.KEY_LEFT, ord("A"), ord("a")]
+MOVE_RIGHT = [curses.KEY_RIGHT, ord("D"), ord("d")]
+SOFT_DROP = [curses.KEY_DOWN, ord("s"), ord("S")]
+ROTATE_CW = [curses.KEY_UP, ord("x"), ord("X"), ord("w"), ord("W")]
+ROTATE_CCW = [ord("z"), ord("Z")]
+HOLD = [ord("c"), ord("C")]
+HARD_DROP = [ord(" ")]
+EXIT = [ord("q"), ord("Q")]
+
+
+def rotate_points(
+    points: list[tuple[int, int]],
+    center: list[int | tuple[int, int]],
+    ccw: bool = False,
+) -> list[tuple[int, int]]:
+    """rotate the point 90 degree"""
+    if isinstance(center[0], (list, tuple)):
+        cr = (center[0][0] + center[0][1]) / 2.0
+        cc = (center[1][0] + center[1][1]) / 2.0  # type: ignore
+    else:
+        cr, cc = float(center[0]), float(center[1])  # type: ignore
+
+    rotated_points = []
+
+    for r, c in points:
+        rel_r = r - cr
+        rel_c = c - cc
+        new_rel_r = -rel_c if ccw else rel_c
+        new_rel_c = rel_r if ccw else -rel_r
+        new_r = int(new_rel_r + cr)
+        new_c = int(new_rel_c + cc)
+
+        rotated_points.append((new_r, new_c))
+
+    return rotated_points
 
 
 class TetriminoShape(Enum):
@@ -18,31 +54,142 @@ class TetriminoShape(Enum):
     T = 6
     Z = 7
 
+    def __repr__(self) -> str:
+        return f"TetriminoShape.{self.name}"
+
+
+class Direction(Enum):
+    NORTH = 0
+    EAST = 1
+    SOUTH = 2
+    WEST = 3
+
+    def __repr__(self) -> str:
+        return f"Direction.{self.name}"
+
+
+SHAPE_TABLE = {
+    TetriminoShape.I: [(0, 0), (0, 1), (0, 2), (0, 3)],
+    TetriminoShape.J: [(0, 0), (1, 0), (1, 1), (1, 2)],
+    TetriminoShape.L: [(0, 0), (0, 1), (0, 2), (-1, 2)],
+    TetriminoShape.O: [(0, 0), (0, 1), (1, 0), (1, 1)],
+    TetriminoShape.S: [(0, 0), (0, 1), (-1, 1), (-1, 2)],
+    TetriminoShape.T: [(0, 0), (0, 1), (-1, 1), (0, 2)],
+    TetriminoShape.Z: [(0, 0), (0, 1), (1, 1), (1, 2)],
+}
+
+ROTATE_AXIS = {
+    TetriminoShape.I: [(0, 1), (1, 2)],
+    TetriminoShape.J: [1, 1],
+    TetriminoShape.L: [0, 1],
+    TetriminoShape.O: [(0, 1), (0, 1)],
+    TetriminoShape.S: [0, 1],
+    TetriminoShape.T: [0, 1],
+    TetriminoShape.Z: [1, 1],
+}
+
+GENERATE_POSITION = {
+    TetriminoShape.I: (19, 3),
+    TetriminoShape.J: (18, 3),
+    TetriminoShape.L: (19, 3),
+    TetriminoShape.O: (18, 4),
+    TetriminoShape.S: (19, 3),
+    TetriminoShape.T: (19, 3),
+    TetriminoShape.Z: (18, 3),
+}
+
+
+# SRS system
+ROTATE_TABLE = defaultdict(lambda: defaultdict(dict))
+
+
+JLSTZ_WALL_KICK_OFFSET = {
+    (Direction.NORTH, Direction.EAST): [(0, 0), (0, -1), (-1, -1), (2, 0), (2, -1)],
+    (Direction.EAST, Direction.NORTH): [(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)],
+    (Direction.EAST, Direction.SOUTH): [(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)],
+    (Direction.SOUTH, Direction.EAST): [(0, 0), (0, -1), (-1, -1), (2, 0), (2, -1)],
+    (Direction.SOUTH, Direction.WEST): [(0, 0), (0, 1), (-1, 1), (2, 0), (2, 1)],
+    (Direction.WEST, Direction.SOUTH): [(0, 0), (0, -1), (1, -1), (-2, 0), (-2, -1)],
+    (Direction.WEST, Direction.NORTH): [(0, 0), (0, -1), (1, -1), (-2, 0), (-2, -1)],
+    (Direction.NORTH, Direction.WEST): [(0, 0), (0, 1), (-1, 1), (2, 0), (2, 1)],
+}
+
+O_WALL_KICK_OFFSET = {
+    (Direction.NORTH, Direction.EAST): [(0, 0)],
+    (Direction.EAST, Direction.NORTH): [(0, 0)],
+    (Direction.EAST, Direction.SOUTH): [(0, 0)],
+    (Direction.SOUTH, Direction.EAST): [(0, 0)],
+    (Direction.SOUTH, Direction.WEST): [(0, 0)],
+    (Direction.WEST, Direction.SOUTH): [(0, 0)],
+    (Direction.WEST, Direction.NORTH): [(0, 0)],
+    (Direction.NORTH, Direction.WEST): [(0, 0)],
+}
+
+I_WALL_KICK_OFFSET = {
+    (Direction.NORTH, Direction.EAST): [(0, 0), (0, -2), (0, 1), (1, -2), (-2, 1)],
+    (Direction.EAST, Direction.NORTH): [(0, 0), (0, 2), (0, -1), (-1, 2), (2, -1)],
+    (Direction.EAST, Direction.SOUTH): [(0, 0), (0, -1), (0, 2), (-2, -1), (1, 2)],
+    (Direction.SOUTH, Direction.EAST): [(0, 0), (0, 1), (0, -2), (2, 1), (-1, -2)],
+    (Direction.SOUTH, Direction.WEST): [(0, 0), (0, 2), (0, -1), (-1, 2), (2, -1)],
+    (Direction.WEST, Direction.SOUTH): [(0, 0), (0, -2), (0, 1), (1, -2), (-2, 1)],
+    (Direction.WEST, Direction.NORTH): [(0, 0), (0, 1), (0, -2), (2, 1), (-1, -2)],
+    (Direction.NORTH, Direction.WEST): [(0, 0), (0, -1), (0, 2), (-2, -1), (1, 2)],
+}
+
+# build the ROTATE_TABLE
+for shape in list(TetriminoShape):
+    directions = list(Direction)
+    _cw = [
+        (directions[i], directions[(i + 1) % len(directions)], False)
+        for i in range(len(directions))
+    ]
+    _ccw = [
+        (
+            directions[i],
+            directions[(len(directions) + (i - 1)) % len(directions)],
+            True,
+        )
+        for i in range(0, -len(directions), -1)
+    ]
+
+    cur_pos = SHAPE_TABLE[shape][::]
+    for start, end, ccw in _cw + _ccw:
+        rotated = rotate_points(cur_pos, ROTATE_AXIS[shape], ccw)
+        diff = [(rx - x, ry - y) for (rx, ry), (x, y) in list(zip(rotated, cur_pos))]
+        cur_pos = rotated
+
+        ROTATE_TABLE[shape][(start, end)]["standard_rotate_diff"] = diff
+
+        if shape == TetriminoShape.I:
+            ROTATE_TABLE[shape][(start, end)]["offsets"] = I_WALL_KICK_OFFSET[
+                (start, end)
+            ]
+        elif shape == TetriminoShape.O:
+            ROTATE_TABLE[shape][(start, end)]["offsets"] = O_WALL_KICK_OFFSET[
+                (start, end)
+            ]
+        else:
+            ROTATE_TABLE[shape][(start, end)]["offsets"] = JLSTZ_WALL_KICK_OFFSET[
+                (start, end)
+            ]
+
 
 class Tetrimino:
 
     ## line0  0000000000 -
-    ## ...               |  buffer zone
+    ## ...               |>  buffer zone
     ## line19 0000000000 -
     ## line20 0000000000 -
-    ## ...               |   game zone
+    ## ...               |>   game zone
     ## line39 0000000000 -
     ## all the tetriminos are generated in the 18th and 19th line(buffer zone)
-
-    shape_table = {
-        TetriminoShape.I: [(19, 3), (19, 4), (19, 5), (19, 6)],
-        TetriminoShape.J: [(18, 3), (19, 3), (19, 4), (19, 5)],
-        TetriminoShape.L: [(19, 3), (19, 4), (19, 5), (18, 5)],
-        TetriminoShape.O: [(18, 4), (18, 5), (19, 4), (19, 5)],
-        TetriminoShape.S: [(19, 3), (19, 4), (18, 4), (19, 5)],
-        TetriminoShape.T: [(19, 3), (19, 4), (18, 4), (19, 5)],
-        TetriminoShape.Z: [(18, 3), (18, 4), (19, 4), (19, 5)],
-    }
 
     def __init__(self, shape: TetriminoShape) -> None:
         self.shape = shape
         self.no = shape.value
-        self.bodies = self.shape_table[shape][::]
+        dx, dy = GENERATE_POSITION[shape]
+        self.bodies = [(x + dx, y + dy) for (x, y) in SHAPE_TABLE[shape]]
+        self.direction = Direction.NORTH
 
     def __iter__(self):
         for x, y in self.bodies:
@@ -70,7 +217,7 @@ class Tetris:
     soft_drop_timer = 0
 
     board = [[0] * 10 for _ in range(40)]
-    bag: Deque[Tetrimino] = deque(maxlen=14)
+    bag: deque[Tetrimino] = deque(maxlen=14)
 
     @property
     def fall_speed(self) -> float:
@@ -85,7 +232,7 @@ class Tetris:
 
     def replenish_bag(self):
         """replenish the bag with 7 random tetriminos"""
-        tmp = [Tetrimino(TetriminoShape(i)) for i in range(1, 8)]
+        tmp = [Tetrimino(shape) for shape in list(TetriminoShape)]
         random.shuffle(tmp)
         self.bag.extend(tmp)
 
@@ -99,38 +246,43 @@ class Tetris:
         tetrimino = self.bag.popleft()
         if len(self.bag) == 7:
             self.replenish_bag()
+        # move down one cell immediate
         return tetrimino
+
+    def generate_new_tetrimino(self):
+        self.cur_tetrimino = self.get_tetrimino()
+        self.do_fall_immediate()
 
     def check_can_move_down(self):
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
-        for x, y in [
-            pos
-            for pos in self.cur_tetrimino
-            if pos[0] == max(x for x, _ in self.cur_tetrimino)
-        ]:
-            if x + 1 >= 40 or self.board[x + 1][y] != 0:
+        for x, y in self.cur_tetrimino:
+            if x + 1 >= 40:
+                return False
+            if (x + 1, y) in self.cur_tetrimino:
+                continue
+            if self.board[x + 1][y] != EMPTY:
                 return False
         return True
 
     def check_can_move_left(self):
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
-        for x, y in [
-            pos
-            for pos in self.cur_tetrimino
-            if pos[1] == min(y for _, y in self.cur_tetrimino)
-        ]:
-            if y - 1 < 0 or self.board[x][y - 1] != 0:
+        for x, y in self.cur_tetrimino:
+            if y - 1 < 0:
+                return False
+            if (x, y - 1) in self.cur_tetrimino:
+                continue
+            if self.board[x][y - 1] != EMPTY:
                 return False
         return True
 
     def check_can_move_right(self):
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
-        for x, y in [
-            pos
-            for pos in self.cur_tetrimino
-            if pos[1] == max(y for _, y in self.cur_tetrimino)
-        ]:
-            if y + 1 >= 10 or self.board[x][y + 1] != 0:
+        for x, y in self.cur_tetrimino:
+            if y + 1 >= 10:
+                return False
+            if (x, y + 1) in self.cur_tetrimino:
+                continue
+            if self.board[x][y + 1] != EMPTY:
                 return False
         return True
 
@@ -173,23 +325,74 @@ class Tetris:
             self.board[x][y] = self.cur_tetrimino.no
         return True
 
+    def check_empty(self, points: list[tuple[int, int]]) -> bool:
+        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        m, n = len(self.board), len(self.board[0])
+        for x, y in points:
+            if (x, y) in self.cur_tetrimino.bodies:
+                continue
+            if not (0 <= x < m and 0 <= y < n) or self.board[x][y] != EMPTY:
+                return False
+        return True
+
+    def do_rotate(self, cur_direction: Direction, next_direction: Direction):
+        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        standard_rotate_diff, offsets = ROTATE_TABLE[self.cur_tetrimino.shape][
+            (cur_direction), (next_direction)
+        ].values()
+
+        rotated = [
+            (x + dx, y + dy)
+            for (x, y), (dx, dy) in list(
+                zip(self.cur_tetrimino.bodies, standard_rotate_diff)
+            )
+        ]
+
+        for dx, dy in offsets:
+            tmp = rotated[::]
+            for i, (x, y) in enumerate(rotated):
+                tmp[i] = x + dx, y + dy
+
+            if self.check_empty(tmp):
+                for x, y in self.cur_tetrimino.bodies:
+                    self.board[x][y] = EMPTY
+                for x, y in tmp:
+                    self.board[x][y] = self.cur_tetrimino.shape.value
+                self.cur_tetrimino.bodies = tmp
+                self.cur_tetrimino.direction = next_direction
+                return
+
+    def do_rotate_cw(self) -> None:
+        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        cur_direction = self.cur_tetrimino.direction
+        directions = list(Direction)
+        next_direction = directions[
+            (directions.index(cur_direction) + 1) % len(directions)
+        ]
+        self.do_rotate(cur_direction, next_direction)
+
+    def do_rotate_ccw(self) -> None:
+        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        cur_direction = self.cur_tetrimino.direction
+        directions = list(Direction)
+        next_direction = directions[
+            (len(directions) + (directions.index(cur_direction) - 1)) % len(directions)
+        ]
+        self.do_rotate(cur_direction, next_direction)
+
     def normal_fall(self):
         self.normal_fall_timer += self.tick
         if self.normal_fall_timer < self.fall_speed:
             return
         self.normal_fall_timer = 0
         if not self.do_fall_immediate():
-            self.cur_tetrimino = self.get_tetrimino()
+            self.generate_new_tetrimino()
 
     def soft_drop(self):
         # cancel normal fall
         self.normal_fall_timer = 0
-        self.soft_drop_timer += self.tick
-        if self.soft_drop_timer < self.soft_drop_speed:
-            return
-        self.soft_drop_timer = 0
         if not self.do_fall_immediate():
-            self.cur_tetrimino = self.get_tetrimino()
+            self.generate_new_tetrimino()
 
     def draw_board(self):
         self.frame_timer += self.tick
@@ -209,16 +412,26 @@ class Tetris:
         self.stdscr.addstr(f"Score: {self.score}")
         self.stdscr.refresh()
 
-    def handle_input(self):
+    def handle_input(self) -> None:
+        """handle the input
+        Terminal input relies on the operating system's control
+        over the rate at which keyboard characters are entered.
+        it't hard to ctrl the long press and normal press
+        """
         c = self.stdscr.getch()
-        if c == ord("q"):
+        if c in EXIT:
             self.failed = True
-        if c == ord("a"):
+        if c in MOVE_LEFT:
             self.do_move_left()
-        if c == ord("d"):
+        if c in MOVE_RIGHT:
             self.do_move_right()
-        if c == ord("s"):
+        if c in SOFT_DROP:
             self.soft_drop()
+        if c in ROTATE_CW:
+            self.do_rotate_cw()
+        if c in ROTATE_CCW:
+            self.do_rotate_ccw()
+
     def game_loop(self):
         while not self.failed:
             self.normal_fall()
@@ -228,8 +441,7 @@ class Tetris:
 
     def init_game(self):
         self.init_bag()
-        self.cur_tetrimino = self.get_tetrimino()
-
+        self.generate_new_tetrimino()
         for i in range(1, 8):
             curses.init_pair(i, i, i)
 
