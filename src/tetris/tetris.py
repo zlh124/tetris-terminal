@@ -211,7 +211,7 @@ class Tetris:
     lines = 0
     level = 1
 
-    fps = 60  # 1 / 60 s per frame
+    fps = 50  # 1 / 60 s per frame
     tick = 0.001  # calculate tick 1 ms
 
     failed = False
