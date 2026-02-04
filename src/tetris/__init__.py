@@ -1,3 +1,3 @@
-from .tetris import Tetris
+from .tetris import Tetris, GAME_WINDOW_SIZE_HEIGHT, GAME_WINDOW_SIZE_WIDTH
 
-__all__ = ["Tetris"]
+__all__ = ["Tetris", "GAME_WINDOW_SIZE_HEIGHT", "GAME_WINDOW_SIZE_WIDTH"]
