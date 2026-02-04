@@ -36,6 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install tomli
+          python -m pip install twine
 
       - name: Extract version from pyproject.toml
         id: get-version
@@ -52,7 +53,7 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          SUCCESS=$(twine upload dist/* --verbose)
+          SUCCESS=$(python -m twine upload dist/* --verbose)
           if $SUCCESS; then
             echo "✅ Successfully published version ${{ steps.get-version.outputs.version }} to PyPI!"
             echo "🔗 https://pypi.org/project/tetris-game/${{ steps.get-version.outputs.version }}/"
