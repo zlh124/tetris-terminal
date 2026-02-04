@@ -2,7 +2,7 @@ name: Publish to PyPI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     # 仅当 pyproject.toml 被修改时触发（避免无关提交触发）
     paths:
       - 'pyproject.toml'
