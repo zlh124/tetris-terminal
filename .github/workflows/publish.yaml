@@ -44,30 +44,19 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Detected version: $VERSION"
 
-      - name: Check if version already exists on PyPI
-        id: check-version
-        env:
-          PACKAGE_NAME: tetris-terminal
-          VERSION: ${{ steps.get-version.outputs.version }}
-        run: |
-          if curl -s --head --fail "https://pypi.org/project/$PACKAGE_NAME/$VERSION/" > /dev/null; then
-            echo "Version $VERSION already exists on PyPI. Skipping publish."
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Version $VERSION does not exist. Proceeding with publish."
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build package
-        if: steps.check-version.outputs.exists == 'false'
         run: python -m uv build
 
       - name: Publish to PyPI
-        if: steps.check-version.outputs.exists == 'false'
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          twine upload dist/* --verbose
-          echo "✅ Published version ${{ steps.get-version.outputs.version }} to PyPI!"
-          echo "🔗 https://pypi.org/project/tetris-game/${{ steps.get-version.outputs.version }}/"
+          SUCCESS=$(twine upload dist/* --verbose)
+          if $SUCCESS; then
+            echo "✅ Successfully published version ${{ steps.get-version.outputs.version }} to PyPI!"
+            echo "🔗 https://pypi.org/project/tetris-game/${{ steps.get-version.outputs.version }}/"
+          else
+            echo "❌ Failed to publish version ${{ steps.get-version.outputs.version }} to PyPI!"
+            exit 1
+          fi

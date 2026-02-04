@@ -12,9 +12,7 @@ license = { file = "MIT" }
 
 authors = [{ name = "jayzhu", email = "jay.l.zhu@foxmail.com" }]
 
-dependencies = [
-    "windows-curses; sys_platform == 'win32'",
-]
+dependencies = ["windows-curses; sys_platform == 'win32'"]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
