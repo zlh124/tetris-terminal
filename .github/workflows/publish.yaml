@@ -53,8 +53,8 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          SUCCESS=$(python -m twine upload dist/* --verbose)
-          if $SUCCESS; then
+          python -m twine upload dist/* --verbose
+          if $?; then
             echo "✅ Successfully published version ${{ steps.get-version.outputs.version }} to PyPI!"
             echo "🔗 https://pypi.org/project/tetris-game/${{ steps.get-version.outputs.version }}/"
           else
