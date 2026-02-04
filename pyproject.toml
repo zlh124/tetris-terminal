@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tetris-terminal"
-version = "0.0.1"
+version = "0.0.2"
 description = "A tetris game runs in the terminal"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -12,7 +12,9 @@ license = { file = "MIT" }
 
 authors = [{ name = "jayzhu", email = "jay.l.zhu@foxmail.com" }]
 
-dependencies = ["windows-curses; sys_platform == 'win32'"]
+dependencies = [
+    "windows-curses; sys_platform == 'win32'",
+]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -21,7 +23,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS :: MacOS X",
-    "Operating System :: Microsoft :: Windows",     # curses 在 Windows 需额外处理
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -34,7 +36,7 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/zlh124/pytetris"
+homepage = "https://github.com/zlh124/tetris-terminal"
 
 [project.scripts]
 tetris = "tetris.cli:main"
