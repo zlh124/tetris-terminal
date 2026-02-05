@@ -11,6 +11,7 @@ A terminal-based Tetris game written in Python using the `curses` library.
     - [x] Next Piece Preview
     - [x] SRS System
     - [x] Piece Holding
+    - [x] Shadow Piece
     - [ ] Scoring System
     - [ ] Level System
 
