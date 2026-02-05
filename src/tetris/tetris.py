@@ -217,6 +217,7 @@ class Tetris:
     failed = False
 
     cur_tetrimino = None
+    shadow = []
     hold = None
 
     frame_timer = 0
@@ -339,6 +340,7 @@ class Tetris:
     def do_move_left(self) -> bool:
         if not self.check_can_move_left():
             return False
+        self.lock_down_rotate_counter += 1
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for x, y in self.cur_tetrimino:
             self.board[x][y] = EMPTY
@@ -351,6 +353,7 @@ class Tetris:
     def do_move_right(self) -> bool:
         if not self.check_can_move_right():
             return False
+        self.lock_down_rotate_counter += 1
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for x, y in self.cur_tetrimino:
             self.board[x][y] = EMPTY
@@ -510,12 +513,17 @@ class Tetris:
         self.stdscr.move(15, 27)
         self.stdscr.addstr(f"Level : {self.level}")
         self.stdscr.move(17, 27)
-        self.stdscr.addstr(f"Hold  : {self.hold.shape.name if self.hold else ""}")
+        self.stdscr.addstr(f"Hold  : {self.hold.shape.name if self.hold else ''}")
+
         # board
         for i in range(20, 40):
             self.stdscr.move(i - 19, 1)
             for j in range(10):
-                self.stdscr.addstr("  ", curses.color_pair(self.board[i][j]))
+                # shadow
+                if self.board[i][j] == EMPTY and (i, j) in self.shadow:
+                    self.stdscr.addstr("[]")
+                else:
+                    self.stdscr.addstr("  ", curses.color_pair(self.board[i][j]))
 
         self.stdscr.refresh()
 
@@ -567,20 +575,42 @@ class Tetris:
             self.lock_down()
             return
         # no longer move down and has cells below, continue timer
-        if self.get_current_lowest() == self.lowest and not self.check_can_move_down():
+        # if self.get_current_lowest() == self.lowest and not self.check_can_move_down():
+        if not self.check_can_move_down():
             self.lock_down_timer += self.tick
         # reach new lowest, reset timer and counter
         elif self.get_current_lowest() > self.lowest:
-            self.reach_button = False
+            self.reach_bottom = False
             self.lock_down_timer = 0
             self.lock_down_rotate_counter = 0
+
+    def handle_shadow(self):
+        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        self.shadow = self.cur_tetrimino.bodies[::]
+
+        def helper():
+            assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+            for x, y in self.shadow:
+                if x + 1 >= len(self.board):
+                    return False
+                if (x + 1, y) in self.board or (x + 1, y) in self.cur_tetrimino.bodies:
+                    continue
+                if self.board[x + 1][y] != EMPTY:
+                    return False
+            return True
+
+        while helper():
+            for i in range(len(self.shadow)):
+                x, y = self.shadow[i]
+                self.shadow[i] = x + 1, y
 
     def game_loop(self) -> None:
         while not self.failed:
             self.normal_fall()
-            self.draw_board()
             self.handle_input()
             self.handle_lock_down()
+            self.handle_shadow()
+            self.draw_board()
             time.sleep(self.tick)
 
     def init_color(self) -> None:
