@@ -44,7 +44,8 @@ jobs:
           VERSION=$(python -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Detected version: $VERSION"
-
+      - name: Clean history version
+        run: rm -rf dist
       - name: Build package
         run: python -m uv build
 
