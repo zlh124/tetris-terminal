@@ -447,6 +447,7 @@ class Tetris:
         if self.hold_once:
             return
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        self.hold_once = True
         for x, y in self.cur_tetrimino:
             self.board[x][y] = EMPTY
         if self.hold is None:
@@ -567,6 +568,7 @@ class Tetris:
         self.reach_bottom = False
         self.lock_down_timer = 0
         self.lock_down_rotate_counter = 0
+        self.hold_once = False
 
     def handle_lock_down(self) -> None:
         if not self.reach_bottom:
