@@ -209,6 +209,9 @@ class Tetrimino:
 class Tetris:
     score = 0
     lines = 0
+
+    lines_for_level = 0
+
     level = 1
 
     fps = 50  # 1 / 60 s per frame
@@ -230,6 +233,15 @@ class Tetris:
     hold_once = False
     reach_bottom = False
     lowest = 0
+
+    b2b_bones = False
+
+    class Movement(Enum):
+        MOVE = 0
+        ROTATE = 1
+
+    # for t-spin calculation
+    last_move = Movement.MOVE
 
     board = [[0] * 10 for _ in range(40)]
     bag: deque[Tetrimino] = deque(maxlen=14)
@@ -274,16 +286,16 @@ class Tetris:
             self.failed = True
         self.do_fall_immediate()
 
-    def line_clear(self) -> None:
+    def line_clear(self) -> int:
+        res = 0
         for row in range(len(self.board) - 1, -1, -1):
             while all(v != EMPTY for v in self.board[row]):
-
-                self.score += 1
-                self.lines += 1
+                res += 1
 
                 for i in range(row - 1, -1, -1):
                     self.board[i + 1] = self.board[i]
                 self.board[0] = [0] * 10
+        return res
 
     def check_can_move_down(self) -> bool:
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
@@ -340,7 +352,11 @@ class Tetris:
     def do_move_left(self) -> bool:
         if not self.check_can_move_left():
             return False
-        self.lock_down_rotate_counter += 1
+        if self.reach_bottom:
+            self.lock_down_rotate_counter += 1
+
+        self.last_move = self.Movement.MOVE
+
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for x, y in self.cur_tetrimino:
             self.board[x][y] = EMPTY
@@ -353,7 +369,11 @@ class Tetris:
     def do_move_right(self) -> bool:
         if not self.check_can_move_right():
             return False
-        self.lock_down_rotate_counter += 1
+        if self.reach_bottom:
+            self.lock_down_rotate_counter += 1
+
+        self.last_move = self.Movement.MOVE
+
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for x, y in self.cur_tetrimino:
             self.board[x][y] = EMPTY
@@ -402,6 +422,9 @@ class Tetris:
                     self.board[x][y] = self.cur_tetrimino.shape.value
                 self.cur_tetrimino.bodies = tmp
                 self.cur_tetrimino.direction = next_direction
+
+                self.last_move = self.Movement.ROTATE
+
                 return
 
     def do_rotate_cw(self) -> None:
@@ -430,6 +453,8 @@ class Tetris:
         if not self.do_fall_immediate():
             self.lowest = self.get_current_lowest()
             self.reach_bottom = True
+        else:
+            self.last_move = self.Movement.MOVE
 
     def do_soft_drop(self) -> None:
         # cancel normal fall
@@ -437,9 +462,15 @@ class Tetris:
         if not self.do_fall_immediate():
             self.lowest = self.get_current_lowest()
             self.reach_bottom = True
+        else:
+            # soft drop get level score
+            self.score += self.level
+            self.last_move = self.Movement.MOVE
 
     def do_hard_drop(self) -> None:
         while self.do_fall_immediate():
+            # hard drop get 2 * level score
+            self.score += self.level * 2
             pass
         self.lock_down()
 
@@ -552,15 +583,87 @@ class Tetris:
         if c in HOLD:
             self.do_hold()
 
+    def is_t_spin(self) -> bool:
+        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if (
+            self.cur_tetrimino.shape != TetriminoShape.T
+            or self.last_move != self.Movement.ROTATE
+        ):
+            return False
+        cx, cy = self.cur_tetrimino[1]
+        corners = 0
+        for x, y in [
+            (cx - 1, cy - 1),
+            (cx + 1, cy - 1),
+            (cx - 1, cy + 1),
+            (cx + 1, cy + 1),
+        ]:
+            if (
+                not ((0 <= x < len(self.board)) and (0 <= y < len(self.board[0])))
+                or self.board[x][y] != EMPTY
+            ):
+                corners += 1
+        return corners >= 3
+
     def lock_down(self) -> None:
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         # all cells in buff zone when lock down
         if all(x < 20 for x, _ in self.cur_tetrimino):
             self.failed = True
 
-        self.line_clear()
+        is_t_spin = self.is_t_spin()
+        cleared_lines = self.line_clear()
 
-        if self.lines >= self.level * (self.level + 1) / 2 * 10:
+        # calculate the score and lines to add
+        bonus = self.b2b_bones
+        self.b2b_bones = False
+
+        awarded_line = 0
+        score2add = 0
+
+        if is_t_spin:
+
+            self.b2b_bones = True
+
+            if cleared_lines == 0:
+                awarded_line = 4
+                score2add = 100 * self.level
+            elif cleared_lines == 1:
+                awarded_line = 7
+                score2add = 400 * self.level
+            elif cleared_lines == 2:
+                awarded_line = 10
+                score2add = 1200 * self.level
+            elif cleared_lines == 3:
+                awarded_line = 13
+                score2add = 1600 * self.level
+        else:
+            if cleared_lines == 1:
+                score2add = 100 * self.level
+            elif cleared_lines == 2:
+                awarded_line = 1
+                score2add = 300 * self.level
+            elif cleared_lines == 3:
+                awarded_line = 2
+                score2add = 500 * self.level
+            elif cleared_lines == 4:
+                awarded_line = 4
+                self.b2b_bones = True
+
+                score2add = 800 * self.level
+        # if b2b, line clear bonus * 1.5 abd score * 1.5
+        if bonus and self.b2b_bones:
+            self.lines_for_level += int((awarded_line + cleared_lines) * 1.5)
+            self.score += 1.5 * score2add
+        else:
+            self.lines_for_level += awarded_line + cleared_lines
+            self.score += score2add
+        
+        self.lines += cleared_lines
+
+        # level up
+        # max level 15
+        if self.level < 15 and self.lines_for_level >= 5 * self.level * (self.level + 1) / 2:
             self.level += 1
 
         self.generate_new_tetrimino()
