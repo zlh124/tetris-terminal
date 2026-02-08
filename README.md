@@ -1,4 +1,5 @@
 ![gameplay](./gameplay.gif)  
+[English](README.md) | [中文](README-cn.md)
 # Tetris Terminal🎮
 A terminal-based Tetris game written in Python using the `curses` library.
 
@@ -12,8 +13,8 @@ A terminal-based Tetris game written in Python using the `curses` library.
     - [x] SRS System
     - [x] Piece Holding
     - [x] Shadow Piece
-    - [ ] Scoring System
-    - [ ] Level System
+    - [x] Modern Scoring System
+    - [x] Modern Level System
 
 ### Platform Support
 Based on Python's [`curses`](https://docs.python.org/3/library/curses.html) module:
@@ -43,3 +44,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ### Acknowledgements
 Idea from [tinytetris](https://github.com/taylorconor/tinytetris) (a C implementation).
+
+### Going to be implemented(Maybe)
+1. pause and resume feature
+2. start and game over ui
+3. better display and sound
+4. ...
