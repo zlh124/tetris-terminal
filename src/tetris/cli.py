@@ -2,6 +2,7 @@ import curses
 import sys
 
 from tetris import GAME_WINDOW_SIZE_HEIGHT, GAME_WINDOW_SIZE_WIDTH, Tetris
+from tetris import logger
 
 
 def wrapper(stdscr: curses.window) -> int:
@@ -12,6 +13,7 @@ def wrapper(stdscr: curses.window) -> int:
 
 
 def main() -> int:
+    logger.info("game start!")
     if curses.wrapper(wrapper) == 1:
         print(
             f"ensure your terminal has at least {GAME_WINDOW_SIZE_HEIGHT} rows and {GAME_WINDOW_SIZE_WIDTH} columns."

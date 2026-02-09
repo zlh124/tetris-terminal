@@ -13,3 +13,6 @@ wheels/
 .vscode
 
 private/
+
+# dev logs
+.log

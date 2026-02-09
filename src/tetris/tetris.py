@@ -1,10 +1,12 @@
 import curses
 import random
-import sys
 import time
+import logging
 
 from collections import defaultdict, deque
 from enum import Enum
+
+logger = logging.getLogger("tetris.tetris")
 
 EMPTY = 0
 
@@ -61,6 +63,9 @@ class TetriminoShape(Enum):
     def __repr__(self) -> str:
         return f"TetriminoShape.{self.name}"
 
+    def __str__(self) -> str:
+        return f"TetriminoShape.{self.name}"
+
 
 class Direction(Enum):
     NORTH = 0
@@ -69,6 +74,9 @@ class Direction(Enum):
     WEST = 3
 
     def __repr__(self) -> str:
+        return f"Direction.{self.name}"
+
+    def __str__(self) -> str:
         return f"Direction.{self.name}"
 
 
@@ -205,6 +213,9 @@ class Tetrimino:
     def __setitem__(self, index: int, value: tuple[int, int]) -> None:
         self.bodies[index] = value
 
+    def __str__(self) -> str:
+        return f"Tetrimino.{self.shape}"
+
 
 class Tetris:
     score = 0
@@ -261,10 +272,12 @@ class Tetris:
         """replenish the bag with 7 random tetriminos"""
         tmp = [Tetrimino(shape) for shape in list(TetriminoShape)]
         random.shuffle(tmp)
+        logger.info(f"fill bag with {[t.shape.name for t in tmp]}")
         self.bag.extend(tmp)
 
     def init_bag(self) -> None:
         """fill the bag"""
+        logger.info("init the bag...")
         for _ in range(2):
             self.replenish_bag()
 
@@ -282,7 +295,10 @@ class Tetris:
 
     def generate_new_tetrimino(self) -> None:
         self.cur_tetrimino = self.get_tetrimino()
+        logger.info("=" * 50)
+        logger.info(f"generate new tetrimino {self.cur_tetrimino}")
         if any(self.board[x][y] != EMPTY for x, y in self.cur_tetrimino):
+            logger.info("game failed, the new generated tetrimino is all in buff zone")
             self.failed = True
         self.do_fall_immediate()
 
@@ -352,6 +368,7 @@ class Tetris:
     def do_move_left(self) -> bool:
         if not self.check_can_move_left():
             return False
+        logger.info("move left...")
         if self.reach_bottom:
             self.lock_down_rotate_counter += 1
 
@@ -369,6 +386,7 @@ class Tetris:
     def do_move_right(self) -> bool:
         if not self.check_can_move_right():
             return False
+        logger.info("move right")
         if self.reach_bottom:
             self.lock_down_rotate_counter += 1
 
@@ -424,7 +442,7 @@ class Tetris:
                 self.cur_tetrimino.direction = next_direction
 
                 self.last_move = self.Movement.ROTATE
-
+                logger.info("do rotate")
                 return
 
     def do_rotate_cw(self) -> None:
@@ -614,6 +632,10 @@ class Tetris:
         is_t_spin = self.is_t_spin()
         cleared_lines = self.line_clear()
 
+        logger.info("lock down, calculate score and lines.")
+        logger.info(f"current level: {self.level}")
+        logger.info(f"is t-spin: {is_t_spin}")
+
         # calculate the score and lines to add
         bonus = self.b2b_bones
         self.b2b_bones = False
@@ -653,19 +675,34 @@ class Tetris:
                 score2add = 800 * self.level
         # if b2b, line clear bonus * 1.5 abd score * 1.5
         if bonus and self.b2b_bones:
-            self.lines_for_level += int((awarded_line + cleared_lines) * 1.5)
-            self.score += 1.5 * score2add
+            bonus_lines = int((awarded_line + cleared_lines) * 1.5)
+            score2add += 1.5 * score2add
         else:
-            self.lines_for_level += awarded_line + cleared_lines
-            self.score += score2add
-        
+            bonus_lines = awarded_line + cleared_lines
+
+        logger.info(f"b2b bonus: {bonus and self.b2b_bones}")
+        logger.info("current lock down:")
+        logger.info(f"score      : {score2add}")
+        logger.info(f"bonus lines: {bonus_lines}")
+        logger.info(f"lines      : {cleared_lines}")
+
+        self.score += score2add
+
+        self.score += score2add
         self.lines += cleared_lines
+        self.lines_for_level += bonus_lines
+        self.b2b_bones = bonus
 
         # level up
         # max level 15
-        if self.level < 15 and self.lines_for_level >= 5 * self.level * (self.level + 1) / 2:
+        if (
+            self.level < 15
+            and self.lines_for_level >= 5 * self.level * (self.level + 1) / 2
+        ):
+            logger.info("level up...")
             self.level += 1
 
+        logger.info("=" * 50)
         self.generate_new_tetrimino()
 
         self.reach_bottom = False
@@ -732,6 +769,7 @@ class Tetris:
             curses.init_pair(tetrimino.value, tetrimino.value, tetrimino.value)
 
     def init_game(self) -> None:
+        logger.info("init game...")
         self.init_bag()
         self.generate_new_tetrimino()
         self.init_color()
