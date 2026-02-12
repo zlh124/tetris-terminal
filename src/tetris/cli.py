@@ -2,7 +2,9 @@ import curses
 import sys
 
 from tetris import GAME_WINDOW_SIZE_HEIGHT, GAME_WINDOW_SIZE_WIDTH, Tetris
-from tetris import logger
+from tetris import setup_logging
+
+logger = setup_logging()
 
 
 def wrapper(stdscr: curses.window) -> int:
