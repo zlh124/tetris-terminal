@@ -626,16 +626,16 @@ class Tetris:
         for i in range(5):
             self.stdscr.addstr(f"{self.bag[i].shape.name} ")
 
-        self.stdscr.move(11, 27)
+        self.stdscr.move(10, 27)
         self.stdscr.addstr(f"Score:{self.score:>7}")
-        self.stdscr.move(13, 27)
+        self.stdscr.move(12, 27)
         self.stdscr.addstr(f"Lines:{self.lines:>7}")
-        self.stdscr.move(15, 27)
+        self.stdscr.move(14, 27)
         self.stdscr.addstr(f"Level:{self.level:>7}")
-        self.stdscr.move(17, 27)
+        self.stdscr.move(16, 27)
         self.stdscr.addstr(f"Hold :{self.hold.shape.name if self.hold else '':>7}")
         # notice
-        self.stdscr.move(17, 27)
+        self.stdscr.move(18, 27)
         notice = self.get_notice()
         if notice:
             self.stdscr.addstr(f"{notice:-^20}", curses.A_REVERSE)
