@@ -37,6 +37,7 @@ tetris
 | `s`, `↓`   | Soft drop  |
 |  `space`   | Hard drop  |
 |    `c`     | Hold       |
+|    `p`     | Pause      |
 |    `q`     | Quit game  |
 
 ### License
@@ -46,7 +47,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 Idea from [tinytetris](https://github.com/taylorconor/tinytetris) (a C implementation).
 
 ### Going to be implemented(Maybe)
-1. pause and resume feature
-2. start and game over ui
-3. better display and sound
-4. ...
+1. start and game over ui
+1. better display and sound
+1. ...

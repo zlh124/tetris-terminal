@@ -571,7 +571,8 @@ class Tetris:
         """
         if self.paused:
             return "PAUSED"
-        if time.time() - self.notice_timer >= 2:
+        # show notice for 1 second
+        if time.time() - self.notice_timer >= 1:
             return ""
         return self.notice
 
