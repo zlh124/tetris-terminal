@@ -5,10 +5,10 @@ import time
 from collections import defaultdict, deque
 from enum import Enum
 
+from .utils import rotate_points
+
 EMPTY = 0
 
-GAME_WINDOW_SIZE_HEIGHT = 22
-GAME_WINDOW_SIZE_WIDTH = 50
 
 # keymap
 MOVE_LEFT = [curses.KEY_LEFT, ord("A"), ord("a")]
@@ -20,33 +20,6 @@ HOLD = [ord("c"), ord("C")]
 HARD_DROP = [ord(" ")]
 EXIT = [ord("q"), ord("Q")]
 PAUSE = [ord("p"), ord("P")]
-
-
-def rotate_points(
-    points: list[tuple[int, int]],
-    center: list[int | tuple[int, int]],
-    ccw: bool = False,
-) -> list[tuple[int, int]]:
-    """rotate the point 90 degree"""
-    if isinstance(center[0], (list, tuple)):
-        cr = (center[0][0] + center[0][1]) / 2.0
-        cc = (center[1][0] + center[1][1]) / 2.0  # type: ignore
-    else:
-        cr, cc = float(center[0]), float(center[1])  # type: ignore
-
-    rotated_points = []
-
-    for r, c in points:
-        rel_r = r - cr
-        rel_c = c - cc
-        new_rel_r = -rel_c if ccw else rel_c
-        new_rel_c = rel_r if ccw else -rel_r
-        new_r = int(new_rel_r + cr)
-        new_c = int(new_rel_c + cc)
-
-        rotated_points.append((new_r, new_c))
-
-    return rotated_points
 
 
 class TetriminoShape(Enum):
@@ -82,6 +55,7 @@ SHAPE_TABLE = {
     TetriminoShape.Z: [(0, 0), (0, 1), (1, 1), (1, 2)],
 }
 
+# the standard rotate axis
 ROTATE_AXIS = {
     TetriminoShape.I: [(0, 1), (1, 2)],
     TetriminoShape.J: [1, 1],
@@ -90,6 +64,17 @@ ROTATE_AXIS = {
     TetriminoShape.S: [0, 1],
     TetriminoShape.T: [0, 1],
     TetriminoShape.Z: [1, 1],
+}
+
+# the offset for preview and hold
+SHOW_OFFSET = {
+    TetriminoShape.I: (1, 0),
+    TetriminoShape.J: (1, 0),
+    TetriminoShape.L: (2, 0),
+    TetriminoShape.O: (1, 0),
+    TetriminoShape.S: (2, 0),
+    TetriminoShape.T: (2, 0),
+    TetriminoShape.Z: (1, 0),
 }
 
 # the tetrimino generation position in the board
@@ -215,7 +200,7 @@ class Tetris:
 
     level = 1
 
-    fps = 60  # 1 / 60 s per frame
+    fps = 30  # 1 / 60 s per frame
     tick = 0.001  # calculate tick 1 ms
 
     failed = False
@@ -266,6 +251,37 @@ class Tetris:
     def __init__(self, stdscr: curses.window) -> None:
         self.board = [[0] * self.BOARD_WIDTH for _ in range(self.BOARD_HEIGHT)]
         self.stdscr = stdscr
+        self.title_window = curses.newwin(4, 44)
+        self.board_window = curses.newwin(22, 22, 4, 0)
+        self.preview_window = curses.newwin(22, 11, 4, 22)
+        self.hold_window = curses.newwin(7, 11, 4, 33)
+        self.info_window = curses.newwin(11, 11, 11, 33)
+        self.notice_window = curses.newwin(4, 11, 22, 33)
+
+        self.windows = [
+            self.title_window,
+            self.board_window,
+            self.preview_window,
+            self.hold_window,
+            self.info_window,
+            self.notice_window,
+        ]
+
+        # can't use from curses import ***. only curses.initscr() is called
+        LTEE = curses.ACS_LTEE
+        RTEE = curses.ACS_RTEE
+        TTEE = curses.ACS_TTEE
+        BTEE = curses.ACS_BTEE
+
+        VLINE = curses.ACS_VLINE
+        HLINE = curses.ACS_HLINE
+
+        self.title_window.border(0, 0, 0, 0, 0, 0, VLINE, VLINE)
+        self.board_window.border(0, 0, 0, 0, LTEE, TTEE, 0, BTEE)
+        self.preview_window.border(0, 0, 0, 0, HLINE, TTEE, HLINE, BTEE)
+        self.hold_window.border(0, 0, 0, 0, HLINE, RTEE, HLINE, RTEE)
+        self.info_window.border(0, 0, 0, 0, HLINE, VLINE, HLINE, RTEE)
+        self.notice_window.border(0, 0, 0, 0, HLINE, VLINE, HLINE, 0)
 
     def replenish_bag(self) -> None:
         """replenish the bag with 7 random tetriminos"""
@@ -576,6 +592,132 @@ class Tetris:
             return ""
         return self.notice
 
+    def draw_title(self) -> None:
+        """draw title"""
+        window = self.title_window
+        _, width = window.getmaxyx()
+        window.addstr(1, 1, f"{'╺┳━┳━━┳━┳━┳┳┳━╸  ╺┳━┳━┏━┓┏┳┓┳┏┓┏━┓╻ ':^{width - 2}}")
+        window.addstr(2, 1, f"{' ┃ ┣━ ┃ ┣┳┛┃┗━┓   ┃ ┣━┣┳┛┃┃┃┃┃┃┣━┫┃ ':^{width - 2}}")
+        window.addstr(3, 1, f"{' ╹ ┗━ ╹ ╹┗╸┻╺━┛   ╹ ┗━┛┗━┛╹┗┻┛┗┛ ╹┗╸':^{width - 2}}")
+        window.refresh()
+
+    def draw_board(self) -> None:
+        """draw board"""
+        for i in range(20, self.BOARD_HEIGHT):
+            self.board_window.move(i - 19, 1)
+            for j in range(self.BOARD_WIDTH):
+                # shadow
+                if self.board[i][j] == EMPTY and (i, j) in self.shadow:
+                    self.board_window.addstr("[]")
+                else:
+                    self.board_window.addstr("  ", curses.color_pair(self.board[i][j]))
+        self.board_window.refresh()
+
+    def draw_preview(self) -> None:
+        """draw preview"""
+        window = self.preview_window
+        height, width = window.getmaxyx()
+        height -= 1
+        width -= 1
+
+        # Next row 1~height, col 0~10:
+        window.addstr(1, 0, f"{' Next:':<{width}}")
+        # each preview takes 3 rows and 8 cols
+        s_col = 1
+        # clear the preview area
+        for row in range(2, height):
+            window.addstr(row, s_col - 1, " " * (width))
+
+        # draw the preview
+        for i, s_row in enumerate(range(2, height - 1, 3)):
+            shape = self.bag[i].shape
+            dx, dy = SHOW_OFFSET[shape]
+            for x, y in SHAPE_TABLE[shape]:
+                window.addstr(
+                    s_row + x + dx,
+                    s_col + (y + dy) * 2,
+                    "  ",
+                    curses.color_pair(shape.value),
+                )
+
+        hold_win_h = self.hold_window.getmaxyx()[0]
+        info_win_h = self.info_window.getmaxyx()[0]
+
+        window.addch(hold_win_h - 1, width, curses.ACS_LTEE)
+        window.addch(hold_win_h + info_win_h - 1, width, curses.ACS_LTEE)
+
+        window.refresh()
+
+    def draw_hold(self) -> None:
+        """draw hold"""
+        window = self.hold_window
+        height, width = window.getmaxyx()
+        height -= 1
+        width -= 1
+
+        window.addstr(1, 0, f"{' Hold:':<{width}}")
+        for row in range(2, height):
+            window.addstr(row, 0, " " * 10)
+
+        if self.hold:
+            shape = self.hold.shape
+            s_row = 2
+            s_col = 1
+            dx, dy = SHOW_OFFSET[shape]
+            for x, y in SHAPE_TABLE[shape]:
+                window.addstr(
+                    s_row + x + dx,
+                    s_col + (y + dy) * 2,
+                    "  ",
+                    curses.color_pair(shape.value),
+                )
+
+        window.refresh()
+
+    def draw_info(self) -> None:
+        window = self.info_window
+        height, width = window.getmaxyx()
+
+        height -= 1
+        width -= 1
+
+        for row in range(0, height):
+            window.addstr(row, 0, " " * (width))
+
+        window.addstr(1, 0, f"{' Score:':<{width}}")
+        window.addstr(2, 0, f"{str(self.score) + ' ':>{width}}")
+        window.addstr(4, 0, f"{' Lines:':<{width}}")
+        window.addstr(5, 0, f"{str(self.lines) + ' ':>{width}}")
+        window.addstr(7, 0, f"{' Level:':<{width}}")
+        window.addstr(8, 0, f"{str(self.level) + ' ':>{width}}")
+
+        window.refresh()
+
+    def draw_notice(self) -> None:
+        """draw info"""
+
+        window = self.notice_window
+        height, width = window.getmaxyx()
+
+        height -= 1
+        width -= 1
+
+        # notice
+        for row in range(0, height):
+            window.addstr(row, 0, " " * width)
+
+        notice = self.get_notice()
+        if notice:
+            if len(notice) > width:
+                lines = [notice[i : i + width] for i in range(0, len(notice), width)]
+                lines = lines[:height]
+                for row, line in enumerate(lines):
+                    window.addstr(row, 0, line)
+            else:
+                window.addstr(height // 2, 0, f"{notice:^{width}}")
+
+        window.refresh()
+
     def draw(self) -> None:
         """draw the game"""
         self.frame_timer += self.tick
@@ -583,76 +725,12 @@ class Tetris:
             return
         self.frame_timer = 0
 
-        # draw border
-        self.stdscr.move(0, 0)
-        self.stdscr.addstr("┏")
-        self.stdscr.move(0, GAME_WINDOW_SIZE_WIDTH - 1)
-        self.stdscr.addstr("┓")
-        self.stdscr.move(GAME_WINDOW_SIZE_HEIGHT - 1, 0)
-        self.stdscr.addstr("┗")
-        self.stdscr.move(GAME_WINDOW_SIZE_HEIGHT - 1, GAME_WINDOW_SIZE_WIDTH - 1)
-        self.stdscr.addstr("┛")
-
-        for i in range(1, GAME_WINDOW_SIZE_WIDTH - 1):
-            self.stdscr.move(0, i)
-            self.stdscr.addstr("━")
-            self.stdscr.move(GAME_WINDOW_SIZE_HEIGHT - 1, i)
-            self.stdscr.addstr("━")
-        for i in range(1, GAME_WINDOW_SIZE_HEIGHT - 1):
-            self.stdscr.move(i, 0)
-            self.stdscr.addstr("┃")
-            self.stdscr.move(i, GAME_WINDOW_SIZE_WIDTH - 1)
-            self.stdscr.addstr("┃")
-
-        self.stdscr.move(0, 21)
-        self.stdscr.addstr("┳")
-        for i in range(1, 21):
-            self.stdscr.move(i, 21)
-            self.stdscr.addstr("┃")
-        self.stdscr.move(GAME_WINDOW_SIZE_HEIGHT - 1, 21)
-        self.stdscr.addstr("┻")
-
-        # title
-        self.stdscr.move(3, 28)
-        self.stdscr.addstr("━┳━┏━━━┳━┏━┓┳┏━╸")
-        self.stdscr.move(4, 28)
-        self.stdscr.addstr(" ┃ ┣━━ ┃ ┣┳┛┃┗━┓")
-        self.stdscr.move(5, 28)
-        self.stdscr.addstr(" ╹ ┗━━ ╹ ╹┗━┻━━┛")
-
-        # game info
-        self.stdscr.move(9, 27)
-        self.stdscr.addstr("Next  : ")
-        for i in range(5):
-            self.stdscr.addstr(f"{self.bag[i].shape.name} ")
-
-        self.stdscr.move(10, 27)
-        self.stdscr.addstr(f"Score:{self.score:>7}")
-        self.stdscr.move(12, 27)
-        self.stdscr.addstr(f"Lines:{self.lines:>7}")
-        self.stdscr.move(14, 27)
-        self.stdscr.addstr(f"Level:{self.level:>7}")
-        self.stdscr.move(16, 27)
-        self.stdscr.addstr(f"Hold :{self.hold.shape.name if self.hold else '':>7}")
-        # notice
-        self.stdscr.move(18, 27)
-        notice = self.get_notice()
-        if notice:
-            self.stdscr.addstr(f"{notice:-^20}", curses.A_REVERSE)
-        else:
-            self.stdscr.addstr(" " * 20)
-
-        # board
-        for i in range(20, self.BOARD_HEIGHT):
-            self.stdscr.move(i - 19, 1)
-            for j in range(self.BOARD_WIDTH):
-                # shadow
-                if self.board[i][j] == EMPTY and (i, j) in self.shadow:
-                    self.stdscr.addstr("[]")
-                else:
-                    self.stdscr.addstr("  ", curses.color_pair(self.board[i][j]))
-
-        self.stdscr.refresh()
+        self.draw_title()
+        self.draw_board()
+        self.draw_preview()
+        self.draw_hold()
+        self.draw_info()
+        self.draw_notice()
 
     def handle_input(self) -> None:
         """handle the input
@@ -868,10 +946,19 @@ class Tetris:
 
     def init_game(self) -> None:
         """init the game"""
+        max_size = [0, 0]
+        for window in self.windows:
+            lt_r, lt_c = window.getbegyx()
+            r, c = window.getmaxyx()
+            max_size[0] = max(max_size[0], r + lt_r)
+            max_size[1] = max(max_size[1], c + lt_c)
+
+        curses.resize_term(*max_size)
+
         self.init_bag()
         self.generate_new_tetrimino()
         self.init_color()
-
+        curses.use_default_colors()
         curses.curs_set(False)
         self.stdscr.timeout(0)
 
