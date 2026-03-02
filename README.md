@@ -48,5 +48,5 @@ Idea from [tinytetris](https://github.com/taylorconor/tinytetris) (a C implement
 
 ### Going to be implemented(Maybe)
 1. start and game over ui
-1. better display and sound
+1. sound
 1. ...
