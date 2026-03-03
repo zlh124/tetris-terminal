@@ -221,7 +221,6 @@ class Tetris:
     notice_timer = 0
 
     hold_once = False
-    reach_bottom = False
     lowest = 0
 
     b2b_bonus = False
@@ -410,8 +409,10 @@ class Tetris:
         """
         if not self.check_can_move_left():
             return False
-        if self.reach_bottom:
-            self.lock_down_move_counter += 1
+
+        # counter++ reset timer
+        self.lock_down_move_counter += 1
+        self.lock_down_timer = 0
 
         self.last_move = self.Movement.MOVE
 
@@ -432,8 +433,10 @@ class Tetris:
         """
         if not self.check_can_move_right():
             return False
-        if self.reach_bottom:
-            self.lock_down_move_counter += 1
+
+        # counter++ reset timer
+        self.lock_down_move_counter += 1
+        self.lock_down_timer = 0
 
         self.last_move = self.Movement.MOVE
 
@@ -501,6 +504,10 @@ class Tetris:
 
                 self.last_move = self.Movement.ROTATE
 
+                # counter++ reset timer
+                self.lock_down_move_counter += 1
+                self.lock_down_timer = 0
+
                 return
 
     def do_rotate_cw(self) -> None:
@@ -529,23 +536,29 @@ class Tetris:
         if self.normal_fall_timer < self.fall_speed:
             return
         self.normal_fall_timer = 0
-        if not self.do_fall_immediate():
-            self.lowest = self.get_current_lowest()
-            self.reach_bottom = True
-        else:
+        if self.do_fall_immediate():
             self.last_move = self.Movement.MOVE
+
+            # reset lock down timer and counter
+            if self.get_current_lowest() > self.lowest:
+                self.lock_down_timer = 0
+                self.lowest = self.get_current_lowest()
+            self.lock_down_move_counter = 0
 
     def do_soft_drop(self) -> None:
         """soft drop, called when soft drop key is pressed"""
         # cancel normal fall
         self.normal_fall_timer = 0
-        if not self.do_fall_immediate():
-            self.lowest = self.get_current_lowest()
-            self.reach_bottom = True
-        else:
+        if self.do_fall_immediate():
             # soft drop get level score
             self.score += self.level
             self.last_move = self.Movement.MOVE
+
+            # reset lock down timer and counter
+            if self.get_current_lowest() > self.lowest:
+                self.lock_down_timer = 0
+                self.lowest = self.get_current_lowest()
+            self.lock_down_move_counter = 0
 
     def do_hard_drop(self) -> None:
         """hard drop, called when hard drop key is pressed"""
@@ -797,15 +810,12 @@ class Tetris:
 
         # calculate the score and lines to add
         bonus = self.b2b_bonus
-        self.b2b_bonus = False
+        self.b2b_bonus = True
 
         awarded_line = 0
         score2add = 0
 
         if is_t_spin:
-
-            self.b2b_bonus = True
-
             if cleared_lines == 0:
                 awarded_line = 4
                 score2add = 100 * self.level
@@ -819,23 +829,29 @@ class Tetris:
                 awarded_line = 13
                 score2add = 1600 * self.level
         else:
-            if cleared_lines == 1:
+            if cleared_lines == 0:
+                # no lines cleared, do not reset b2b
+                self.b2b_bonus = bonus
+            elif cleared_lines == 1:
                 score2add = 100 * self.level
+                self.b2b_bonus = False
             elif cleared_lines == 2:
                 awarded_line = 1
                 score2add = 300 * self.level
+                self.b2b_bonus = False
             elif cleared_lines == 3:
                 awarded_line = 2
                 score2add = 500 * self.level
+                self.b2b_bonus = False
             elif cleared_lines == 4:
                 awarded_line = 4
-                self.b2b_bonus = True
 
                 score2add = 800 * self.level
         # if b2b, line clear bonus * 1.5 abd score * 1.5
         if bonus and self.b2b_bonus:
             self.lines_for_level += int((awarded_line + cleared_lines) * 1.5)
-            self.score += 1.5 * score2add
+            self.score += int(1.5 * score2add)
+
         else:
             self.lines_for_level += awarded_line + cleared_lines
             self.score += score2add
@@ -852,46 +868,45 @@ class Tetris:
 
         self.generate_new_tetrimino()
 
-        self.reach_bottom = False
         self.lock_down_timer = 0
         self.lock_down_move_counter = 0
         self.hold_once = False
 
         # show notice
+        notice = ""
         if is_t_spin:
             if cleared_lines == 0:
-                self.set_notice("T-Spin!")
+                notice = "T-Spin!"
             elif cleared_lines == 1:
-                self.set_notice("T-Spin Single!")
+                notice = "T-Spin Single!"
             elif cleared_lines == 2:
-                self.set_notice("T-Spin Double!")
+                notice = "T-Spin Double!"
             elif cleared_lines == 3:
-                self.set_notice("T-Spin Triple!")
+                notice = "T-Spin Triple!"
         elif cleared_lines == 1:
-            self.set_notice("Single!")
+            notice = "Single!"
         elif cleared_lines == 2:
-            self.set_notice("Double!")
+            notice = "Double!"
         elif cleared_lines == 3:
-            self.set_notice("Triple!")
+            notice = "Triple!"
         elif cleared_lines == 4:
-            self.set_notice("Tetris!")
+            notice = "Tetris!"
+
+        if notice:
+            if self.b2b_bonus and bonus:
+                notice += " B2B!"
+            self.set_notice(notice)
 
     def handle_lock_down(self) -> None:
         """handle lock down"""
-        if not self.reach_bottom:
+        if self.check_can_move_down():
             return
+        else:
+            # reset when move and rotate successfully
+            self.lock_down_timer += self.tick
+
         if self.lock_down_timer >= 0.5:
             self.lock_down()
-            return
-        # no longer move down and has cells below, continue timer
-        # if self.get_current_lowest() == self.lowest and not self.check_can_move_down():
-        if not self.check_can_move_down():
-            self.lock_down_timer += self.tick
-        # reach new lowest, reset timer and counter
-        elif self.get_current_lowest() > self.lowest:
-            self.reach_bottom = False
-            self.lock_down_timer = 0
-            self.lock_down_move_counter = 0
 
     def handle_shadow(self):
         """handle shadow tetrimino"""
@@ -953,7 +968,12 @@ class Tetris:
             max_size[0] = max(max_size[0], r + lt_r)
             max_size[1] = max(max_size[1], c + lt_c)
 
-        curses.resize_term(*max_size)
+        curses.update_lines_cols()
+        terminal_size = [curses.LINES, curses.COLS]
+        if terminal_size[0] < max_size[0] or terminal_size[1] < max_size[1]:
+            raise RuntimeError(
+                f"tetris-terminal needs {max_size[0]} cols, and {max_size[1]} rows terminal size."
+            )
 
         self.init_bag()
         self.generate_new_tetrimino()
