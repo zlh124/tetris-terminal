@@ -1,3 +1,2 @@
-from .tetris import Tetris
-
-__all__ = ["Tetris"]
+WINDOW_ROWS = 22
+WINDOW_COLS = 44

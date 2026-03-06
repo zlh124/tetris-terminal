@@ -48,6 +48,5 @@ MIT 许可证 - 详情见 [LICENSE](LICENSE)。
 灵感来源于 [tinytetris](https://github.com/taylorconor/tinytetris)（一个 C 语言实现版本）。
 
 ### 计划填坑（可能）
-1. 开始界面与游戏结束界面
 1. 音效支持
 1. ...

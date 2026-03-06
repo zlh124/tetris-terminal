@@ -193,6 +193,51 @@ class Tetrimino:
         self.bodies[index] = value
 
 
+class GameMode(Enum):
+    """
+    game mode
+
+    :0: 150 rows, when lines >= 150, settlement game.
+    :1: casual mode, endless, max level 5
+    :2: endless, max level 15
+    :3: digging mode, max level 5, endless
+    """
+
+    _150_ROWS = 0
+    CASUAL = 1
+    ENDLESS = 2
+    DIGGING = 3
+
+
+class SettlementMessage:
+    """game settlement message"""
+
+    score = 0
+    lines = 0
+    single = 0
+    double = 0
+    triple = 0
+    tetris = 0
+    t_spin = 0
+    t_spin_single = 0
+    t_spin_double = 0
+    t_spin_triple = 0
+
+    def format(self, width: int) -> list[str]:
+        return [
+            f"{'Score : ' + str(self.score):^{width // 2}}"
+            + f"{'Lines : ' + str(self.lines):^{width // 2}}",
+            f"{'Single : ' + str(self.single):^{width // 2}}"
+            + f"{'Double : ' + str(self.double):^{width // 2}}",
+            f"{'Triple : ' + str(self.triple):^{width // 2}}"
+            + f"{'Tetris : ' + str(self.tetris):^{width // 2}}",
+            f"{'T-Spin : ' + str(self.t_spin):^{width // 2}}"
+            + f"{'T-Spin Single : ' + str(self.t_spin_single):^{width // 2}}",
+            f"{'T-Spin Double : ' + str(self.t_spin_double):^{width // 2}}"
+            + f"{'T-Spin Triple : ' + str(self.t_spin_triple):^{width // 2}}",
+        ]
+
+
 class Tetris:
     score = 0
     lines = 0
@@ -203,7 +248,7 @@ class Tetris:
     fps = 30  # 1 / 60 s per frame
     tick = 0.001  # calculate tick 1 ms
 
-    failed = False
+    game_over = False
     paused = False
 
     cur_tetrimino = None
@@ -214,6 +259,7 @@ class Tetris:
     frame_timer = 0
     normal_fall_timer = 0
     soft_drop_timer = 0
+    line_increment_timer = 0
 
     lock_down_timer = 0
     lock_down_move_counter = 0
@@ -224,6 +270,8 @@ class Tetris:
     lowest = 0
 
     b2b_bonus = False
+
+    set_msg = SettlementMessage()
 
     class Movement(Enum):
         MOVE = 0
@@ -247,24 +295,17 @@ class Tetris:
     def soft_drop_speed(self) -> float:
         return self.fall_speed / 20
 
-    def __init__(self, stdscr: curses.window) -> None:
-        self.board = [[0] * self.BOARD_WIDTH for _ in range(self.BOARD_HEIGHT)]
+    def __init__(self, stdscr: curses.window, game_mode: GameMode) -> None:
         self.stdscr = stdscr
-        self.title_window = curses.newwin(4, 44)
-        self.board_window = curses.newwin(22, 22, 4, 0)
-        self.preview_window = curses.newwin(22, 11, 4, 22)
-        self.hold_window = curses.newwin(7, 11, 4, 33)
-        self.info_window = curses.newwin(11, 11, 11, 33)
-        self.notice_window = curses.newwin(4, 11, 22, 33)
+        self.game_mode = game_mode
 
-        self.windows = [
-            self.title_window,
-            self.board_window,
-            self.preview_window,
-            self.hold_window,
-            self.info_window,
-            self.notice_window,
-        ]
+        self.board = [[0] * self.BOARD_WIDTH for _ in range(self.BOARD_HEIGHT)]
+
+        self.board_window = curses.newwin(22, 22, 0, 0)
+        self.preview_window = curses.newwin(22, 11, 0, 22)
+        self.hold_window = curses.newwin(7, 11, 0, 33)
+        self.info_window = curses.newwin(11, 11, 7, 33)
+        self.notice_window = curses.newwin(4, 11, 18, 33)
 
         # can't use from curses import ***. only curses.initscr() is called
         LTEE = curses.ACS_LTEE
@@ -275,10 +316,9 @@ class Tetris:
         VLINE = curses.ACS_VLINE
         HLINE = curses.ACS_HLINE
 
-        self.title_window.border(0, 0, 0, 0, 0, 0, VLINE, VLINE)
-        self.board_window.border(0, 0, 0, 0, LTEE, TTEE, 0, BTEE)
+        self.board_window.border(0, 0, 0, 0, 0, TTEE, 0, BTEE)
         self.preview_window.border(0, 0, 0, 0, HLINE, TTEE, HLINE, BTEE)
-        self.hold_window.border(0, 0, 0, 0, HLINE, RTEE, HLINE, RTEE)
+        self.hold_window.border(0, 0, 0, 0, HLINE, 0, HLINE, RTEE)
         self.info_window.border(0, 0, 0, 0, HLINE, VLINE, HLINE, RTEE)
         self.notice_window.border(0, 0, 0, 0, HLINE, VLINE, HLINE, 0)
 
@@ -310,7 +350,7 @@ class Tetris:
         """generate a new tetrimino"""
         self.cur_tetrimino = self.get_tetrimino()
         if any(self.board[x][y] != EMPTY for x, y in self.cur_tetrimino):
-            self.failed = True
+            self.game_over = True
         self.do_fall_immediate()
 
     def line_clear(self) -> int:
@@ -339,8 +379,6 @@ class Tetris:
         for x, y in self.cur_tetrimino:
             if x + 1 >= self.BOARD_HEIGHT:
                 return False
-            if (x + 1, y) in self.cur_tetrimino:
-                continue
             if self.board[x + 1][y] != EMPTY:
                 return False
         return True
@@ -357,8 +395,6 @@ class Tetris:
         for x, y in self.cur_tetrimino:
             if y - 1 < 0:
                 return False
-            if (x, y - 1) in self.cur_tetrimino:
-                continue
             if self.board[x][y - 1] != EMPTY:
                 return False
         return True
@@ -375,8 +411,6 @@ class Tetris:
         for x, y in self.cur_tetrimino:
             if y + 1 >= self.BOARD_WIDTH:
                 return False
-            if (x, y + 1) in self.cur_tetrimino:
-                continue
             if self.board[x][y + 1] != EMPTY:
                 return False
         return True
@@ -390,15 +424,9 @@ class Tetris:
         if not self.check_can_move_down():
             return False
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
-        # clean old pos
-        for x, y in self.cur_tetrimino:
-            self.board[x][y] = EMPTY
         # move down
         for i, (x, y) in enumerate(self.cur_tetrimino):
             self.cur_tetrimino[i] = (x + 1, y)
-        # draw new pos
-        for x, y in self.cur_tetrimino:
-            self.board[x][y] = self.cur_tetrimino.no
         return True
 
     def do_move_left(self) -> bool:
@@ -417,12 +445,8 @@ class Tetris:
         self.last_move = self.Movement.MOVE
 
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
-        for x, y in self.cur_tetrimino:
-            self.board[x][y] = EMPTY
         for i, (x, y) in enumerate(self.cur_tetrimino):
             self.cur_tetrimino[i] = (x, y - 1)
-        for x, y in self.cur_tetrimino:
-            self.board[x][y] = self.cur_tetrimino.no
         return True
 
     def do_move_right(self) -> bool:
@@ -441,12 +465,8 @@ class Tetris:
         self.last_move = self.Movement.MOVE
 
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
-        for x, y in self.cur_tetrimino:
-            self.board[x][y] = EMPTY
         for i, (x, y) in enumerate(self.cur_tetrimino):
             self.cur_tetrimino[i] = (x, y + 1)
-        for x, y in self.cur_tetrimino:
-            self.board[x][y] = self.cur_tetrimino.no
         return True
 
     def check_empty(self, points: list[tuple[int, int]]) -> bool:
@@ -495,10 +515,6 @@ class Tetris:
                 tmp[i] = x + dx, y + dy
 
             if self.check_empty(tmp):
-                for x, y in self.cur_tetrimino.bodies:
-                    self.board[x][y] = EMPTY
-                for x, y in tmp:
-                    self.board[x][y] = self.cur_tetrimino.shape.value
                 self.cur_tetrimino.bodies = tmp
                 self.cur_tetrimino.direction = next_direction
 
@@ -605,25 +621,25 @@ class Tetris:
             return ""
         return self.notice
 
-    def draw_title(self) -> None:
-        """draw title"""
-        window = self.title_window
-        _, width = window.getmaxyx()
-        window.addstr(1, 1, f"{'╺┳━┳━━┳━┳━┳┳┳━╸  ╺┳━┳━┏━┓┏┳┓┳┏┓┏━┓╻ ':^{width - 2}}")
-        window.addstr(2, 1, f"{' ┃ ┣━ ┃ ┣┳┛┃┗━┓   ┃ ┣━┣┳┛┃┃┃┃┃┃┣━┫┃ ':^{width - 2}}")
-        window.addstr(3, 1, f"{' ╹ ┗━ ╹ ╹┗╸┻╺━┛   ╹ ┗━┛┗━┛╹┗┻┛┗┛ ╹┗╸':^{width - 2}}")
-        window.refresh()
-
     def draw_board(self) -> None:
         """draw board"""
+        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for i in range(20, self.BOARD_HEIGHT):
-            self.board_window.move(i - 19, 1)
+            line = i - 19
             for j in range(self.BOARD_WIDTH):
+                self.board_window.addstr(
+                    line, 2 * j + 1, "  ", curses.color_pair(self.board[i][j])
+                )
                 # shadow
                 if self.board[i][j] == EMPTY and (i, j) in self.shadow:
-                    self.board_window.addstr("[]")
-                else:
-                    self.board_window.addstr("  ", curses.color_pair(self.board[i][j]))
+                    self.board_window.addstr(line, 2 * j + 1, "[]")
+                if (i, j) in self.cur_tetrimino:
+                    self.board_window.addstr(
+                        line,
+                        2 * j + 1,
+                        "  ",
+                        curses.color_pair(self.cur_tetrimino.shape.value),
+                    )
         self.board_window.refresh()
 
     def draw_preview(self) -> None:
@@ -738,7 +754,6 @@ class Tetris:
             return
         self.frame_timer = 0
 
-        self.draw_title()
         self.draw_board()
         self.draw_preview()
         self.draw_hold()
@@ -755,7 +770,7 @@ class Tetris:
         if c in PAUSE:
             self.paused = not self.paused
         if c in EXIT:
-            self.failed = True
+            self.game_over = True
 
         if self.paused:
             return
@@ -803,7 +818,11 @@ class Tetris:
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         # all cells in buff zone when lock down
         if all(x < 20 for x, _ in self.cur_tetrimino):
-            self.failed = True
+            self.game_over = True
+
+        # fill cur tetrimino to the board
+        for x, y in self.cur_tetrimino:
+            self.board[x][y] = self.cur_tetrimino.no
 
         is_t_spin = self.is_t_spin()
         cleared_lines = self.line_clear()
@@ -819,15 +838,19 @@ class Tetris:
             if cleared_lines == 0:
                 awarded_line = 4
                 score2add = 100 * self.level
+                self.set_msg.t_spin += 1
             elif cleared_lines == 1:
                 awarded_line = 7
                 score2add = 400 * self.level
+                self.set_msg.t_spin_single += 1
             elif cleared_lines == 2:
                 awarded_line = 10
                 score2add = 1200 * self.level
+                self.set_msg.t_spin_double += 1
             elif cleared_lines == 3:
                 awarded_line = 13
                 score2add = 1600 * self.level
+                self.set_msg.t_spin_triple += 1
         else:
             if cleared_lines == 0:
                 # no lines cleared, do not reset b2b
@@ -835,18 +858,22 @@ class Tetris:
             elif cleared_lines == 1:
                 score2add = 100 * self.level
                 self.b2b_bonus = False
+                self.set_msg.single += 1
             elif cleared_lines == 2:
                 awarded_line = 1
                 score2add = 300 * self.level
                 self.b2b_bonus = False
+                self.set_msg.double += 1
             elif cleared_lines == 3:
                 awarded_line = 2
                 score2add = 500 * self.level
                 self.b2b_bonus = False
+                self.set_msg.triple += 1
             elif cleared_lines == 4:
                 awarded_line = 4
-
                 score2add = 800 * self.level
+                self.set_msg.tetris += 1
+
         # if b2b, line clear bonus * 1.5 abd score * 1.5
         if bonus and self.b2b_bonus:
             self.lines_for_level += int((awarded_line + cleared_lines) * 1.5)
@@ -858,6 +885,9 @@ class Tetris:
 
         self.lines += cleared_lines
 
+        if self.game_mode == GameMode._150_ROWS and self.lines >= 150:
+            self.game_over = True
+
         # level up
         # max level 15
         if (
@@ -865,6 +895,12 @@ class Tetris:
             and self.lines_for_level >= 5 * self.level * (self.level + 1) / 2
         ):
             self.level += 1
+
+        # if casual or digging mode, max level is 5
+        if (
+            self.game_mode == GameMode.CASUAL or self.game_mode == GameMode.DIGGING
+        ) and self.level > 5:
+            self.level = 5
 
         self.generate_new_tetrimino()
 
@@ -929,9 +965,34 @@ class Tetris:
                 x, y = self.shadow[i]
                 self.shadow[i] = x + 1, y
 
+    def handle_digging_mode(self) -> None:
+        """for digging mode, auto add one line at the bottom of the board in fixed time"""
+        self.line_increment_timer += self.tick
+
+        if self.game_mode != GameMode.DIGGING or self.line_increment_timer < 5:
+            return
+        self.line_increment_timer = 0
+
+        # add one line at the bottom of the board
+        self.board.pop(0)
+
+        # randomly set some empty cells
+        new_line = [
+            list(TetriminoShape)[random.randint(0, len(TetriminoShape) - 1)].value
+            for _ in range(self.BOARD_WIDTH)
+        ]
+
+        indexes = list(range(self.BOARD_WIDTH))
+        random.shuffle(indexes)
+
+        for i in range(random.randint(1, 5)):
+            new_line[indexes[i]] = EMPTY
+
+        self.board.append(new_line)
+
     def game_loop(self) -> None:
         """main game loop"""
-        while not self.failed:
+        while not self.game_over:
             self.handle_input()
             time.sleep(self.tick)
             self.draw()
@@ -940,6 +1001,7 @@ class Tetris:
                 self.normal_fall()
                 self.handle_lock_down()
                 self.handle_shadow()
+                self.handle_digging_mode()
 
     def init_color(self) -> None:
         if curses.can_change_color():
@@ -961,27 +1023,17 @@ class Tetris:
 
     def init_game(self) -> None:
         """init the game"""
-        max_size = [0, 0]
-        for window in self.windows:
-            lt_r, lt_c = window.getbegyx()
-            r, c = window.getmaxyx()
-            max_size[0] = max(max_size[0], r + lt_r)
-            max_size[1] = max(max_size[1], c + lt_c)
-
-        curses.update_lines_cols()
-        terminal_size = [curses.LINES, curses.COLS]
-        if terminal_size[0] < max_size[0] or terminal_size[1] < max_size[1]:
-            raise RuntimeError(
-                f"tetris-terminal needs {max_size[0]} cols, and {max_size[1]} rows terminal size."
-            )
-
         self.init_bag()
         self.generate_new_tetrimino()
         self.init_color()
-        curses.use_default_colors()
-        curses.curs_set(False)
         self.stdscr.timeout(0)
 
-    def main(self) -> None:
+    def main(self) -> SettlementMessage:
         self.init_game()
         self.game_loop()
+
+        # return the settlement message
+        self.set_msg.lines = self.lines
+        self.set_msg.score = self.score
+
+        return self.set_msg
