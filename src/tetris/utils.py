@@ -1,4 +1,7 @@
 
+from importlib.metadata import PackageNotFoundError, version
+
+
 def rotate_points(
     points: list[tuple[int, int]],
     center: list[int | tuple[int, int]],
@@ -24,3 +27,9 @@ def rotate_points(
         rotated_points.append((new_r, new_c))
 
     return rotated_points
+
+def get_version() -> str:
+    try:
+        return version("tetris-terminal")
+    except PackageNotFoundError:
+        return "0.0.0-dev"

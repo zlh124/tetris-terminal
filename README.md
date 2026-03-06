@@ -47,6 +47,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 Idea from [tinytetris](https://github.com/taylorconor/tinytetris) (a C implementation).
 
 ### Going to be implemented(Maybe)
-1. start and game over ui
 1. sound
 1. ...
