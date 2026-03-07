@@ -1004,7 +1004,7 @@ class Tetris:
                 self.handle_digging_mode()
 
     def init_color(self) -> None:
-        if curses.can_change_color():
+        if curses.COLORS > 16 and curses.can_change_color():
             # the color 0~7 is the default terminal color, use 8 or higher
             curses.init_color(TetriminoShape.I.value + 7, 0, 941, 941)  # cyan
             curses.init_color(TetriminoShape.O.value + 7, 941, 941, 0)  # yellow
