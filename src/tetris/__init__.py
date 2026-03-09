@@ -1,2 +1,6 @@
-WINDOW_ROWS = 22
-WINDOW_COLS = 44
+import sys
+
+from tetris.cli import main
+
+
+sys.exit(main())

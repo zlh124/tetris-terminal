@@ -4,22 +4,23 @@
 A terminal-based Tetris game written in Python using the `curses` library.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)]()  
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)]()  
 
 ### Features
 - Modern Tetris design following the [Tetris Design Guideline](https://dn720004.ca.archive.org/0/items/2009-tetris-variant-concepts_202201/2009%20Tetris%20Design%20Guideline.pdf)
-    - [x] Extended Placement
-    - [x] Next Piece Preview
-    - [x] SRS System
-    - [x] Piece Holding
-    - [x] Shadow Piece
-    - [x] Modern Scoring System
-    - [x] Modern Level System
+  - [x] Extended Placement
+  - [x] Next Piece Preview
+  - [x] SRS System
+  - [x] Piece Holding
+  - [x] Shadow Piece
+  - [x] Modern Scoring System
+  - [x] Modern Level System
 
 ### Platform Support
 Based on Python's [`curses`](https://docs.python.org/3/library/curses.html) module:
 - ✅ **Linux/macOS**: Works out of the box
 - ✅️ **Windows**: With [`windows-curses`](https://github.com/zephyrproject-rtos/windows-curses)
+- Can run on basically any terminal setup, even a linux tty.
 
 ### Installation & Usage
 ```bash

@@ -1,5 +1,7 @@
+"""settlement display ui"""
+
 import curses
-from . import WINDOW_ROWS, WINDOW_COLS
+from .tetris import WINDOW_ROWS, WINDOW_COLS
 from .tetris import SettlementMessage
 
 

@@ -1,9 +1,9 @@
+"""game menu, mode selection"""
+
 import curses
 from enum import Enum
-import time
 
-from . import WINDOW_ROWS, WINDOW_COLS
-from .utils import get_version
+from .tetris import WINDOW_ROWS, WINDOW_COLS
 
 
 class Sections(Enum):
@@ -70,7 +70,7 @@ class Menu:
 
         window.refresh()
 
-    def draw_version(self) -> None:
+    def draw_notice(self) -> None:
         """draw version"""
         window = self.version_window
         _, width = window.getmaxyx()
@@ -83,7 +83,7 @@ class Menu:
     def draw(self) -> None:
         self.draw_title()
         self.draw_sections()
-        self.draw_version()
+        self.draw_notice()
 
     def handle_input(self) -> None:
         c = self.stdscr.getch()
@@ -103,12 +103,3 @@ class Menu:
         self.stdscr.timeout(0)
         self.loop()
         return self.cur_section
-
-
-if __name__ == "__main__":
-    def wrapper(stdscr: curses.window) -> int:
-        curses.curs_set(0)
-        curses.use_default_colors()
-        return Menu(stdscr).main()
-
-    print(curses.wrapper(wrapper))

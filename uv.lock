@@ -1,15 +1,10 @@
 version = 1
 revision = 2
-requires-python = ">=3.8"
-resolution-markers = [
-    "python_full_version >= '3.10'",
-    "python_full_version == '3.9.*'",
-    "python_full_version < '3.9'",
-]
+requires-python = ">=3.9"
 
 [[package]]
 name = "tetris-terminal"
-version = "0.1.2"
+version = "0.1.8a1"
 source = { editable = "." }
 dependencies = [
     { name = "windows-curses", marker = "sys_platform == 'win32'" },
@@ -31,8 +26,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/62/8f/d908bcab1954375b156a9300fa86ceccb110f39457cd6fd59c72777626ab/windows_curses-2.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:5c9c2635faf171a229caca80e1dd760ab00db078e2a285ba2f667bbfcc31777c", size = 81777, upload-time = "2025-01-11T00:26:25.273Z" },
     { url = "https://files.pythonhosted.org/packages/25/a0/e8d074f013117633f6b502ca123ecfc377fe0bd36818fe65e8935c91ca9c/windows_curses-2.4.1-cp313-cp313-win32.whl", hash = "sha256:05d1ca01e5199a435ccb6c8c2978df4a169cdff1ec99ab15f11ded9de8e5be26", size = 71390, upload-time = "2025-01-11T00:26:27.66Z" },
     { url = "https://files.pythonhosted.org/packages/2b/4b/2838a829b074a68c570d54ae0ae8539979657d3e619a4dc5a4b03eb69745/windows_curses-2.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:8cf653f8928af19c103ae11cfed38124f418dcdd92643c4cd17239c0cec2f9da", size = 81636, upload-time = "2025-01-11T00:26:29.595Z" },
-    { url = "https://files.pythonhosted.org/packages/08/58/0a8fd30e8952ac461949e5b5177815cb70cd8e1399b9464537bd178f28b1/windows_curses-2.4.1-cp38-cp38-win32.whl", hash = "sha256:e9ce84559f80de7ec770d28c3b2991e0da51748def04e25a3c08ada727cfac2d", size = 76513, upload-time = "2025-01-11T00:26:38.334Z" },
-    { url = "https://files.pythonhosted.org/packages/69/67/0ffc78290400740898c4d0df503c1b200dae7f31bbe6172468e590404885/windows_curses-2.4.1-cp38-cp38-win_amd64.whl", hash = "sha256:618e31458fedba2cf8105485ff00533ece780026c544142fc1647a20dc6c7641", size = 89372, upload-time = "2025-01-11T00:26:40.545Z" },
     { url = "https://files.pythonhosted.org/packages/5a/07/8684dabf0d8c54b2e3ffb6bbc0f0e162b0817008c0f98cca4e04f9a9e72c/windows_curses-2.4.1-cp39-cp39-win32.whl", hash = "sha256:775a2e0fefeddfdb0e00b3fa6c4f21caf9982db34df30e4e62c49caaef7b5e56", size = 76858, upload-time = "2025-01-11T00:26:41.783Z" },
     { url = "https://files.pythonhosted.org/packages/58/de/b050bb1dc40ce48afb477198fb65abe51580c03a165492fce1e8fa61efd5/windows_curses-2.4.1-cp39-cp39-win_amd64.whl", hash = "sha256:4588213f7ef3b0c24c5cb9e309653d7a84c1792c707561e8b471d466ca79f2b8", size = 89536, upload-time = "2025-01-11T00:26:43.11Z" },
 ]

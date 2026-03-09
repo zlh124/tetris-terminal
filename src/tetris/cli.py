@@ -1,9 +1,10 @@
+"""program entrance"""
+
 import curses
-import sys
 import argparse
 
 
-from tetris import WINDOW_ROWS, WINDOW_COLS
+from tetris.tetris import WINDOW_ROWS, WINDOW_COLS
 from tetris.menu import Menu, Sections
 from tetris.tetris import Tetris, GameMode
 from tetris.utils import get_version
@@ -45,7 +46,3 @@ def main() -> int:
     args = parser.parse_args()
 
     return curses.wrapper(wrapper)
-
-
-if __name__ == "__main__":
-    sys.exit(main())
