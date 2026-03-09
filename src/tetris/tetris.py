@@ -1,3 +1,5 @@
+"""main game logic"""
+
 import curses
 import random
 import time
@@ -6,6 +8,9 @@ from collections import defaultdict, deque
 from enum import Enum
 
 from .utils import rotate_points
+
+WINDOW_ROWS = 22
+WINDOW_COLS = 44
 
 EMPTY = 0
 
@@ -351,7 +356,7 @@ class Tetris:
         self.cur_tetrimino = self.get_tetrimino()
         if any(self.board[x][y] != EMPTY for x, y in self.cur_tetrimino):
             self.game_over = True
-        self.do_fall_immediate()
+        self.do_move_down()
 
     def line_clear(self) -> int:
         """clear lines, called when current tetrimino is locked
@@ -377,9 +382,7 @@ class Tetris:
         """
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for x, y in self.cur_tetrimino:
-            if x + 1 >= self.BOARD_HEIGHT:
-                return False
-            if self.board[x + 1][y] != EMPTY:
+            if x + 1 >= self.BOARD_HEIGHT or self.board[x + 1][y] != EMPTY:
                 return False
         return True
 
@@ -393,9 +396,7 @@ class Tetris:
             return False
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for x, y in self.cur_tetrimino:
-            if y - 1 < 0:
-                return False
-            if self.board[x][y - 1] != EMPTY:
+            if y - 1 < 0 or self.board[x][y - 1] != EMPTY:
                 return False
         return True
 
@@ -409,13 +410,11 @@ class Tetris:
             return False
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for x, y in self.cur_tetrimino:
-            if y + 1 >= self.BOARD_WIDTH:
-                return False
-            if self.board[x][y + 1] != EMPTY:
+            if y + 1 >= self.BOARD_WIDTH or self.board[x][y + 1] != EMPTY:
                 return False
         return True
 
-    def do_fall_immediate(self) -> bool:
+    def do_move_down(self) -> bool:
         """move the current tetrimino down immediately
 
         :return: True if the success, False otherwise
@@ -478,8 +477,6 @@ class Tetris:
         """
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for x, y in points:
-            if (x, y) in self.cur_tetrimino.bodies:
-                continue
             if (
                 not (0 <= x < self.BOARD_HEIGHT and 0 <= y < self.BOARD_WIDTH)
                 or self.board[x][y] != EMPTY
@@ -552,7 +549,7 @@ class Tetris:
         if self.normal_fall_timer < self.fall_speed:
             return
         self.normal_fall_timer = 0
-        if self.do_fall_immediate():
+        if self.do_move_down():
             self.last_move = self.Movement.MOVE
 
             # reset lock down timer and counter
@@ -565,7 +562,7 @@ class Tetris:
         """soft drop, called when soft drop key is pressed"""
         # cancel normal fall
         self.normal_fall_timer = 0
-        if self.do_fall_immediate():
+        if self.do_move_down():
             # soft drop get level score
             self.score += self.level
             self.last_move = self.Movement.MOVE
@@ -578,10 +575,9 @@ class Tetris:
 
     def do_hard_drop(self) -> None:
         """hard drop, called when hard drop key is pressed"""
-        while self.do_fall_immediate():
+        while self.do_move_down():
             # hard drop get 2 * level * lines score
             self.score += self.level * 2
-            pass
         self.lock_down()
 
     def do_hold(self) -> None:
@@ -874,7 +870,7 @@ class Tetris:
                 score2add = 800 * self.level
                 self.set_msg.tetris += 1
 
-        # if b2b, line clear bonus * 1.5 abd score * 1.5
+        # if b2b, line clear bonus * 1.5 and score * 1.5
         if bonus and self.b2b_bonus:
             self.lines_for_level += int((awarded_line + cleared_lines) * 1.5)
             self.score += int(1.5 * score2add)

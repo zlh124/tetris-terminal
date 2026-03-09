@@ -1,3 +1,4 @@
+"""utils"""
 
 from importlib.metadata import PackageNotFoundError, version
 
@@ -27,6 +28,7 @@ def rotate_points(
         rotated_points.append((new_r, new_c))
 
     return rotated_points
+
 
 def get_version() -> str:
     try:
