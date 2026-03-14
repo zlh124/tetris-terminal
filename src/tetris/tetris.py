@@ -306,11 +306,11 @@ class Tetris:
 
         self.board = [[0] * self.BOARD_WIDTH for _ in range(self.BOARD_HEIGHT)]
 
-        self.board_window = curses.newwin(22, 22, 0, 0)
-        self.preview_window = curses.newwin(22, 11, 0, 22)
-        self.hold_window = curses.newwin(7, 11, 0, 33)
-        self.info_window = curses.newwin(11, 11, 7, 33)
-        self.notice_window = curses.newwin(4, 11, 18, 33)
+        self.hold_window = curses.newwin(7, 12, 0, 0)
+        self.info_window = curses.newwin(11, 12, 7, 0)
+        self.notice_window = curses.newwin(4, 12, 18, 0)
+        self.board_window = curses.newwin(22, 21, 0, 12)
+        self.preview_window = curses.newwin(22, 12, 0, 32)
 
         # can't use from curses import ***. only curses.initscr() is called
         LTEE = curses.ACS_LTEE
@@ -321,11 +321,11 @@ class Tetris:
         VLINE = curses.ACS_VLINE
         HLINE = curses.ACS_HLINE
 
-        self.board_window.border(0, 0, 0, 0, 0, TTEE, 0, BTEE)
-        self.preview_window.border(0, 0, 0, 0, HLINE, TTEE, HLINE, BTEE)
-        self.hold_window.border(0, 0, 0, 0, HLINE, 0, HLINE, RTEE)
-        self.info_window.border(0, 0, 0, 0, HLINE, VLINE, HLINE, RTEE)
-        self.notice_window.border(0, 0, 0, 0, HLINE, VLINE, HLINE, 0)
+        self.hold_window.border(0, 0, 0, 0, 0, TTEE, LTEE, RTEE)
+        self.info_window.border(0, 0, 0, 0, VLINE, VLINE, LTEE, RTEE)
+        self.notice_window.border(0, 0, 0, 0, VLINE, VLINE, 0, BTEE)
+        self.preview_window.border(0, 0, 0, 0, TTEE, 0, BTEE, 0)
+        self.board_window.border(0, 0, 0, 0, HLINE, 0, HLINE, BTEE)
 
     def replenish_bag(self) -> None:
         """replenish the bag with 7 random tetriminos"""
@@ -619,23 +619,27 @@ class Tetris:
 
     def draw_board(self) -> None:
         """draw board"""
+        window = self.board_window
+        height, width = window.getmaxyx()
+
+        width -= 1
+
         assert self.cur_tetrimino is not None, "cur_tetrimino is None"
         for i in range(20, self.BOARD_HEIGHT):
             line = i - 19
             for j in range(self.BOARD_WIDTH):
-                self.board_window.addstr(
-                    line, 2 * j + 1, "  ", curses.color_pair(self.board[i][j])
-                )
+                window.addstr(line, 2 * j, "  ", curses.color_pair(self.board[i][j]))
                 # shadow
                 if self.board[i][j] == EMPTY and (i, j) in self.shadow:
-                    self.board_window.addstr(line, 2 * j + 1, "[]")
+                    window.addstr(line, 2 * j, "[]")
                 if (i, j) in self.cur_tetrimino:
-                    self.board_window.addstr(
+                    window.addstr(
                         line,
-                        2 * j + 1,
+                        2 * j,
                         "  ",
                         curses.color_pair(self.cur_tetrimino.shape.value),
                     )
+
         self.board_window.refresh()
 
     def draw_preview(self) -> None:
@@ -643,12 +647,12 @@ class Tetris:
         window = self.preview_window
         height, width = window.getmaxyx()
         height -= 1
-        width -= 1
+        width -= 2
 
         # Next row 1~height, col 0~10:
-        window.addstr(1, 0, f"{' Next:':<{width}}")
+        window.addstr(1, 1, f"{' Next:':<{width}}")
         # each preview takes 3 rows and 8 cols
-        s_col = 1
+        s_col = 2
         # clear the preview area
         for row in range(2, height):
             window.addstr(row, s_col - 1, " " * (width))
@@ -665,12 +669,6 @@ class Tetris:
                     curses.color_pair(shape.value),
                 )
 
-        hold_win_h = self.hold_window.getmaxyx()[0]
-        info_win_h = self.info_window.getmaxyx()[0]
-
-        window.addch(hold_win_h - 1, width, curses.ACS_LTEE)
-        window.addch(hold_win_h + info_win_h - 1, width, curses.ACS_LTEE)
-
         window.refresh()
 
     def draw_hold(self) -> None:
@@ -678,16 +676,16 @@ class Tetris:
         window = self.hold_window
         height, width = window.getmaxyx()
         height -= 1
-        width -= 1
+        width -= 2
 
-        window.addstr(1, 0, f"{' Hold:':<{width}}")
+        window.addstr(1, 1, f"{' Hold:':<{width}}")
         for row in range(2, height):
-            window.addstr(row, 0, " " * 10)
+            window.addstr(row, 1, " " * width)
 
         if self.hold:
             shape = self.hold.shape
             s_row = 2
-            s_col = 1
+            s_col = 2
             dx, dy = SHOW_OFFSET[shape]
             for x, y in SHAPE_TABLE[shape]:
                 window.addstr(
@@ -704,17 +702,17 @@ class Tetris:
         height, width = window.getmaxyx()
 
         height -= 1
-        width -= 1
+        width -= 2
 
         for row in range(0, height):
-            window.addstr(row, 0, " " * (width))
+            window.addstr(row, 1, " " * (width))
 
-        window.addstr(1, 0, f"{' Score:':<{width}}")
-        window.addstr(2, 0, f"{str(self.score) + ' ':>{width}}")
-        window.addstr(4, 0, f"{' Lines:':<{width}}")
-        window.addstr(5, 0, f"{str(self.lines) + ' ':>{width}}")
-        window.addstr(7, 0, f"{' Level:':<{width}}")
-        window.addstr(8, 0, f"{str(self.level) + ' ':>{width}}")
+        window.addstr(1, 1, f"{' Score:':<{width}}")
+        window.addstr(2, 1, f"{str(self.score) + ' ':>{width}}")
+        window.addstr(4, 1, f"{' Lines:':<{width}}")
+        window.addstr(5, 1, f"{str(self.lines) + ' ':>{width}}")
+        window.addstr(7, 1, f"{' Level:':<{width}}")
+        window.addstr(8, 1, f"{str(self.level) + ' ':>{width}}")
 
         window.refresh()
 
@@ -725,11 +723,11 @@ class Tetris:
         height, width = window.getmaxyx()
 
         height -= 1
-        width -= 1
+        width -= 2
 
         # notice
         for row in range(0, height):
-            window.addstr(row, 0, " " * width)
+            window.addstr(row, 1, " " * width)
 
         notice = self.get_notice()
         if notice:
@@ -737,9 +735,9 @@ class Tetris:
                 lines = [notice[i : i + width] for i in range(0, len(notice), width)]
                 lines = lines[:height]
                 for row, line in enumerate(lines):
-                    window.addstr(row, 0, line)
+                    window.addstr(row, 1, line)
             else:
-                window.addstr(height // 2, 0, f"{notice:^{width}}")
+                window.addstr(height // 2, 1, f"{notice:^{width}}")
 
         window.refresh()
 
@@ -994,10 +992,10 @@ class Tetris:
             self.draw()
 
             if not self.paused:
+                self.handle_digging_mode()
                 self.normal_fall()
                 self.handle_lock_down()
                 self.handle_shadow()
-                self.handle_digging_mode()
 
     def init_color(self) -> None:
         if curses.COLORS > 16 and curses.can_change_color():
