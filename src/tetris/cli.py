@@ -13,8 +13,7 @@ from tetris.settlement import Settlement
 
 def wrapper(stdscr: curses.window) -> int:
     curses.update_lines_cols()
-    terminal_size = [curses.LINES, curses.COLS]
-    if terminal_size[0] < WINDOW_ROWS or terminal_size[1] < WINDOW_COLS:
+    if curses.LINES < WINDOW_ROWS or curses.COLS < WINDOW_COLS:
         raise RuntimeError(
             f"tetris-terminal needs {WINDOW_ROWS} rows, and {WINDOW_COLS} cols terminal size."
         )
@@ -43,6 +42,6 @@ def main() -> int:
 
     parser.add_argument("--version", action="version", version=f"v{get_version()}")
 
-    args = parser.parse_args()
+    parser.parse_args()
 
     return curses.wrapper(wrapper)
