@@ -5,7 +5,9 @@ import random
 import time
 
 from collections import defaultdict, deque
+from datetime import datetime
 from enum import Enum
+from typing import Any, Generator
 
 from .utils import rotate_points
 
@@ -35,6 +37,7 @@ class TetriminoShape(Enum):
     T = 5
     I = 6
     L = 7
+    GARBAGE = 8  # Garbage Tetrimino
 
     def __repr__(self) -> str:
         return f"TetriminoShape.{self.name}"
@@ -133,7 +136,7 @@ I_WALL_KICK_OFFSET = {
 }
 
 # build the ROTATE_TABLE
-for shape in list(TetriminoShape):
+for shape in list(TetriminoShape)[:-1]:
     directions = list(Direction)
     _cw = [
         (directions[i], directions[(i + 1) % len(directions)], False)
@@ -187,7 +190,7 @@ class Tetrimino:
         self.bodies = [(x + dx, y + dy) for (x, y) in SHAPE_TABLE[shape]]
         self.direction = Direction.NORTH
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[tuple[int, int], Any, None]:
         for x, y in self.bodies:
             yield x, y
 
@@ -217,94 +220,156 @@ class GameMode(Enum):
 class SettlementMessage:
     """game settlement message"""
 
-    score = 0
-    lines = 0
-    single = 0
-    double = 0
-    triple = 0
-    tetris = 0
-    t_spin = 0
-    t_spin_single = 0
-    t_spin_double = 0
-    t_spin_triple = 0
+    def __init__(
+        self,
+        score: int,
+        lines: int,
+        time: str,
+        single: int,
+        double: int,
+        triple: int,
+        tetris: int,
+        t_spin: int,
+        t_spin_single: int,
+        t_spin_double: int,
+        t_spin_triple: int,
+        mini_t_spin: int,
+        mini_t_spin_single: int,
+    ) -> None:
+        # Summary
+        self.score = score
+        self.lines = lines
+        self.time = time
+
+        # Line clear counts
+        self.single = single
+        self.double = double
+        self.triple = triple
+        self.tetris = tetris
+
+        # T-Spin counts
+        self.t_spin = t_spin
+        self.t_spin_single = t_spin_single
+        self.t_spin_double = t_spin_double
+        self.t_spin_triple = t_spin_triple
+        self.mini_t_spin = mini_t_spin
+        self.mini_t_spin_single = mini_t_spin_single
 
     def format(self, width: int) -> list[str]:
-        return [
-            f"{'Score : ' + str(self.score):^{width // 2}}"
-            + f"{'Lines : ' + str(self.lines):^{width // 2}}",
-            f"{'Single : ' + str(self.single):^{width // 2}}"
-            + f"{'Double : ' + str(self.double):^{width // 2}}",
-            f"{'Triple : ' + str(self.triple):^{width // 2}}"
-            + f"{'Tetris : ' + str(self.tetris):^{width // 2}}",
-            f"{'T-Spin : ' + str(self.t_spin):^{width // 2}}"
-            + f"{'T-Spin Single : ' + str(self.t_spin_single):^{width // 2}}",
-            f"{'T-Spin Double : ' + str(self.t_spin_double):^{width // 2}}"
-            + f"{'T-Spin Triple : ' + str(self.t_spin_triple):^{width // 2}}",
+        harfw = width >> 1
+        msgs = [
+            f"Score: {self.score}",
+            f"Lines: {self.lines}",
+            f"Time: {self.time}",
+            f"Single: {self.single}",
+            f"Double: {self.double}",
+            f"Triple: {self.triple}",
+            f"Tetris: {self.tetris}",
+            f"T-Spin: {self.t_spin}",
+            f"T-Spin Single: {self.t_spin_single}",
+            f"T-Spin Double: {self.t_spin_double}",
+            f"T-Spin Triple: {self.t_spin_triple}",
+            f"Mini-T-Spin: {self.mini_t_spin}",
+            f"Mini-T-Spin Single: {self.mini_t_spin_single}",
         ]
+        i = 0
+        res = []
+        cur_line = ""
+        while i < len(msgs):
+            if len(cur_line) + harfw > width or len(msgs[i]) > harfw:
+                res.append(f"{cur_line:^{width}}")
+                cur_line = ""
+            else:
+                cur_line += f"{msgs[i]:^{harfw}}"
+                i += 1
+            if i == len(msgs):
+                res.append(f"{cur_line:^{width}}")
+        return res
 
 
 class Tetris:
-    score = 0
-    lines = 0
-    lines_for_level = 0
-
-    level = 1
-
-    fps = 30  # 1 / 60 s per frame
+    # Game configuration
+    fps = 30  # 1 / 30 s per frame
     tick = 0.001  # calculate tick 1 ms
 
-    game_over = False
-    paused = False
-
-    cur_tetrimino = None
-    shadow = []
-    hold = None
-    notice = ""
-
-    frame_timer = 0
-    normal_fall_timer = 0
-    soft_drop_timer = 0
-    line_increment_timer = 0
-
-    lock_down_timer = 0
-    lock_down_move_counter = 0
-
-    notice_timer = 0
-
-    hold_once = False
-    lowest = 0
-
-    b2b_bonus = False
-
-    set_msg = SettlementMessage()
-
-    class Movement(Enum):
-        MOVE = 0
-        ROTATE = 1
-
-    # for t-spin calculation
-    last_move = Movement.MOVE
-
+    # Board dimensions
     BOARD_WIDTH = 10
     BOARD_HEIGHT = 40
 
     MAX_LOCK_DOWN_MOVE_COUNT = 15
 
-    bag: deque[Tetrimino] = deque(maxlen=14)
+    class Movement(Enum):
+        MOVE = 0
+        ROTATE = 1
 
     @property
     def fall_speed(self) -> float:
         return (0.8 - ((self.level - 1) * 0.007)) ** (self.level - 1)
 
     @property
-    def soft_drop_speed(self) -> float:
-        return self.fall_speed / 20
+    def game_time(self) -> str:
+        time_diff = (datetime.now() - self.start_time).total_seconds()
+        minutes = int(time_diff // 60)
+        seconds = int(time_diff % 60)
+        milliseconds = int((time_diff * 100) % 100)
+        return f"{minutes:02d}:{seconds:02d}:{milliseconds:02d}"
 
     def __init__(self, stdscr: curses.window, game_mode: GameMode) -> None:
         self.stdscr = stdscr
         self.game_mode = game_mode
 
+        # Score / progress
+        self.score = 0
+        self.lines = 0
+        self.lines_for_level = 0
+        self.level = 1
+        self.start_time = datetime.now()
+
+        # settlement
+        self.single = 0
+        self.double = 0
+        self.triple = 0
+        self.tetris = 0
+        self.t_spin = 0
+        self.t_spin_single = 0
+        self.t_spin_double = 0
+        self.t_spin_triple = 0
+        self.mini_t_spin = 0
+        self.mini_t_spin_single = 0
+
+        # Game flow
+        self.game_over = False
+        self.paused = False
+
+        # Piece state
+        self.cur_tetrimino = None
+        self.hold = None
+        self.hold_once = False
+
+        # Timers
+        self.frame_timer = 0
+        self.normal_fall_timer = 0
+        self.soft_drop_timer = 0
+        self.line_increment_timer = 0
+        self.lock_down_timer = 0
+        self.notice_timer = 0
+
+        # Lock-down tracking
+        self.lock_down_move_counter = 0
+        self.lowest = 0
+
+        # Combo / T-Spin tracking
+        self.b2b_bonus = False
+        self.last_move = self.Movement.MOVE
+        self.rotate_offset = 0
+
+        # Notice
+        self.notice = ""
+
+        # Board, bag, shadow, settlement message
         self.board = [[0] * self.BOARD_WIDTH for _ in range(self.BOARD_HEIGHT)]
+        self.shadow: list[tuple[int, int]] = []
+        self.bag: deque[Tetrimino] = deque(maxlen=14)
 
         self.hold_window = curses.newwin(7, 12, 0, 0)
         self.info_window = curses.newwin(11, 12, 7, 0)
@@ -329,7 +394,7 @@ class Tetris:
 
     def replenish_bag(self) -> None:
         """replenish the bag with 7 random tetriminos"""
-        tmp = [Tetrimino(shape) for shape in list(TetriminoShape)]
+        tmp = [Tetrimino(shape) for shape in list(TetriminoShape)[:-1]]
         random.shuffle(tmp)
         self.bag.extend(tmp)
 
@@ -348,7 +413,8 @@ class Tetris:
 
     def get_current_lowest(self) -> int:
         """get the lowest row of the current tetrimino"""
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         return max(x for x, _ in self.cur_tetrimino)
 
     def generate_new_tetrimino(self) -> None:
@@ -371,7 +437,7 @@ class Tetris:
 
                 for i in range(row - 1, -1, -1):
                     self.board[i + 1] = self.board[i]
-                self.board[0] = [0] * 10
+                self.board[0] = [EMPTY] * self.BOARD_WIDTH
         return res
 
     def check_can_move_down(self) -> bool:
@@ -380,7 +446,8 @@ class Tetris:
         :return: True if the current tetrimino can move down, False otherwise
         :rtype: bool
         """
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
             if x + 1 >= self.BOARD_HEIGHT or self.board[x + 1][y] != EMPTY:
                 return False
@@ -394,7 +461,8 @@ class Tetris:
         """
         if self.lock_down_move_counter >= self.MAX_LOCK_DOWN_MOVE_COUNT:
             return False
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
             if y - 1 < 0 or self.board[x][y - 1] != EMPTY:
                 return False
@@ -408,7 +476,8 @@ class Tetris:
         """
         if self.lock_down_move_counter >= self.MAX_LOCK_DOWN_MOVE_COUNT:
             return False
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
             if y + 1 >= self.BOARD_WIDTH or self.board[x][y + 1] != EMPTY:
                 return False
@@ -422,7 +491,8 @@ class Tetris:
         """
         if not self.check_can_move_down():
             return False
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         # move down
         for i, (x, y) in enumerate(self.cur_tetrimino):
             self.cur_tetrimino[i] = (x + 1, y)
@@ -443,7 +513,8 @@ class Tetris:
 
         self.last_move = self.Movement.MOVE
 
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         for i, (x, y) in enumerate(self.cur_tetrimino):
             self.cur_tetrimino[i] = (x, y - 1)
         return True
@@ -463,26 +534,32 @@ class Tetris:
 
         self.last_move = self.Movement.MOVE
 
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         for i, (x, y) in enumerate(self.cur_tetrimino):
             self.cur_tetrimino[i] = (x, y + 1)
         return True
 
-    def check_empty(self, points: list[tuple[int, int]]) -> bool:
+    def check_point_empty(self, point: tuple[int, int]) -> bool:
+        """check if the given point is empty in the board
+
+        :param point: the point to check
+        :return: True if the point is empty, False otherwise
+        :rtype: bool
+        """
+        x, y = point
+        return (
+            0 <= x < self.BOARD_HEIGHT and 0 <= y < self.BOARD_WIDTH
+        ) and self.board[x][y] == EMPTY
+
+    def check_points_empty(self, points: list[tuple[int, int]]) -> bool:
         """check if the given points are empty in the board
 
         :param points: the points to check
         :return: True if the points are empty, False otherwise
         :rtype: bool
         """
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
-        for x, y in points:
-            if (
-                not (0 <= x < self.BOARD_HEIGHT and 0 <= y < self.BOARD_WIDTH)
-                or self.board[x][y] != EMPTY
-            ):
-                return False
-        return True
+        return all(self.check_point_empty(point) for point in points)
 
     def do_rotate(self, cur_direction: Direction, next_direction: Direction) -> None:
         """rotate the current tetrimino
@@ -494,10 +571,13 @@ class Tetris:
             self.lock_down_move_counter >= self.MAX_LOCK_DOWN_MOVE_COUNT
         ):  # can only rotate 15 times when reach bottom
             return
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
-        standard_rotate_diff, offsets = ROTATE_TABLE[self.cur_tetrimino.shape][
-            (cur_direction), (next_direction)
-        ].values()
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
+        rotate_data = ROTATE_TABLE[self.cur_tetrimino.shape][
+            (cur_direction, next_direction)
+        ]
+        standard_rotate_diff = rotate_data["standard_rotate_diff"]
+        offsets = rotate_data["offsets"]
 
         rotated = [
             (x + dx, y + dy)
@@ -506,12 +586,12 @@ class Tetris:
             )
         ]
 
-        for dx, dy in offsets:
+        for i, (dx, dy) in enumerate(offsets):
             tmp = rotated[::]
             for i, (x, y) in enumerate(rotated):
                 tmp[i] = x + dx, y + dy
 
-            if self.check_empty(tmp):
+            if self.check_points_empty(tmp):
                 self.cur_tetrimino.bodies = tmp
                 self.cur_tetrimino.direction = next_direction
 
@@ -521,11 +601,15 @@ class Tetris:
                 self.lock_down_move_counter += 1
                 self.lock_down_timer = 0
 
+                # record the rotate offset for t-spin calculation
+                self.rotate_offset = i
+
                 return
 
     def do_rotate_cw(self) -> None:
-        """rotate the current tetrimino clockwise, called when key cw is pressed"""
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        """try rotate the current tetrimino clockwise, called when key cw is pressed"""
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         cur_direction = self.cur_tetrimino.direction
         directions = list(Direction)
         next_direction = directions[
@@ -534,8 +618,9 @@ class Tetris:
         self.do_rotate(cur_direction, next_direction)
 
     def do_rotate_ccw(self) -> None:
-        """rotate the current tetrimino counterclockwise, called when key ccw is pressed"""
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        """try rotate the current tetrimino counterclockwise, called when key ccw is pressed"""
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         cur_direction = self.cur_tetrimino.direction
         directions = list(Direction)
         next_direction = directions[
@@ -584,7 +669,8 @@ class Tetris:
         """hold the current tetrimino, called when hold key is pressed"""
         if self.hold_once:
             return
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         self.hold_once = True
         for x, y in self.cur_tetrimino:
             self.board[x][y] = EMPTY
@@ -620,15 +706,16 @@ class Tetris:
     def draw_board(self) -> None:
         """draw board"""
         window = self.board_window
-        height, width = window.getmaxyx()
+        _, width = window.getmaxyx()
 
         width -= 1
 
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         for i in range(20, self.BOARD_HEIGHT):
             line = i - 19
             for j in range(self.BOARD_WIDTH):
-                window.addstr(line, 2 * j, "  ", curses.color_pair(self.board[i][j]))
+                window.addstr(line, 2 * j, "  ", self.get_color(self.board[i][j]))
                 # shadow
                 if self.board[i][j] == EMPTY and (i, j) in self.shadow:
                     window.addstr(line, 2 * j, "[]")
@@ -637,7 +724,7 @@ class Tetris:
                         line,
                         2 * j,
                         "  ",
-                        curses.color_pair(self.cur_tetrimino.shape.value),
+                        self.get_color(self.cur_tetrimino.shape.value),
                     )
 
         self.board_window.refresh()
@@ -666,7 +753,7 @@ class Tetris:
                     s_row + x + dx,
                     s_col + (y + dy) * 2,
                     "  ",
-                    curses.color_pair(shape.value),
+                    self.get_color(shape.value),
                 )
 
         window.refresh()
@@ -692,12 +779,13 @@ class Tetris:
                     s_row + x + dx,
                     s_col + (y + dy) * 2,
                     "  ",
-                    curses.color_pair(shape.value),
+                    self.get_color(shape.value),
                 )
 
         window.refresh()
 
     def draw_info(self) -> None:
+        """draw info"""
         window = self.info_window
         height, width = window.getmaxyx()
 
@@ -707,12 +795,14 @@ class Tetris:
         for row in range(0, height):
             window.addstr(row, 1, " " * (width))
 
-        window.addstr(1, 1, f"{' Score:':<{width}}")
-        window.addstr(2, 1, f"{str(self.score) + ' ':>{width}}")
-        window.addstr(4, 1, f"{' Lines:':<{width}}")
-        window.addstr(5, 1, f"{str(self.lines) + ' ':>{width}}")
-        window.addstr(7, 1, f"{' Level:':<{width}}")
-        window.addstr(8, 1, f"{str(self.level) + ' ':>{width}}")
+        window.addstr(1, 1, f"{'Time:':<{width}}")
+        window.addstr(2, 1, f"{self.game_time:>{width}}")
+        window.addstr(3, 1, f"{'Score:':<{width}}")
+        window.addstr(4, 1, f"{str(self.score):>{width}}")
+        window.addstr(5, 1, f"{'Lines:':<{width}}")
+        window.addstr(6, 1, f"{str(self.lines):>{width}}")
+        window.addstr(7, 1, f"{'Level:':<{width}}")
+        window.addstr(8, 1, f"{str(self.level):>{width}}")
 
         window.refresh()
 
@@ -784,32 +874,50 @@ class Tetris:
         if c in HOLD:
             self.do_hold()
 
-    def is_t_spin(self) -> bool:
-        """check t-spin when lock down"""
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+    def is_t_spin(self) -> int:
+        """check t-spin when lock down
+
+        :return: t-spin or not: 0 not t-spin, 1 t-spin, 2 t-spin mini
+        :rtype: int
+        """
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         if (
             self.cur_tetrimino.shape != TetriminoShape.T
             or self.last_move != self.Movement.ROTATE
         ):
-            return False
+            return 0
         cx, cy = self.cur_tetrimino[1]
+
         corners = 0
-        for x, y in [
+        for p in [
             (cx - 1, cy - 1),
             (cx + 1, cy - 1),
             (cx - 1, cy + 1),
             (cx + 1, cy + 1),
         ]:
-            if (
-                not ((0 <= x < len(self.board)) and (0 <= y < len(self.board[0])))
-                or self.board[x][y] != EMPTY
-            ):
+            if not self.check_point_empty(p):
                 corners += 1
-        return corners >= 3
+
+        if corners < 3:
+            return 0
+        # if rotate offset is 4th point, it's t-spin
+        if self.rotate_offset == 4:
+            return 1
+        if self.cur_tetrimino.direction == Direction.NORTH:
+            slots = [(cx - 1, cy - 1), (cx - 1, cy + 1)]
+        if self.cur_tetrimino.direction == Direction.EAST:
+            slots = [(cx - 1, cy + 1), (cx + 1, cy + 1)]
+        if self.cur_tetrimino.direction == Direction.SOUTH:
+            slots = [(cx + 1, cy - 1), (cx + 1, cy + 1)]
+        if self.cur_tetrimino.direction == Direction.WEST:
+            slots = [(cx - 1, cy - 1), (cx + 1, cy - 1)]
+        return 1 if all(not self.check_point_empty(p) for p in slots) else 2
 
     def lock_down(self) -> None:
-        """lock down the current tetrimino, calculate the score and lines and so on"""
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        """lock down the current tetrimino"""
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         # all cells in buff zone when lock down
         if all(x < 20 for x, _ in self.cur_tetrimino):
             self.game_over = True
@@ -821,30 +929,56 @@ class Tetris:
         is_t_spin = self.is_t_spin()
         cleared_lines = self.line_clear()
 
-        # calculate the score and lines to add
+        was_b2b = self.calculate_score(is_t_spin, cleared_lines)
+
+        self.generate_new_tetrimino()
+
+        self.lock_down_timer = 0
+        self.lock_down_move_counter = 0
+        self.hold_once = False
+
+        self.build_notice(is_t_spin, cleared_lines, was_b2b)
+
+    def calculate_score(self, is_t_spin: int, cleared_lines: int) -> bool:
+        """calculate and apply score, lines, level, and settlement stats for a lock-down event.
+
+        :param is_t_spin: whether the lock-down was a T-Spin
+        :param cleared_lines: number of lines cleared
+        :return: whether back-to-back bonus was active before this lock-down
+        :rtype: bool
+        """
         bonus = self.b2b_bonus
         self.b2b_bonus = True
 
         awarded_line = 0
         score2add = 0
 
-        if is_t_spin:
+        if is_t_spin == 1:
             if cleared_lines == 0:
                 awarded_line = 4
                 score2add = 100 * self.level
-                self.set_msg.t_spin += 1
+                self.t_spin += 1
             elif cleared_lines == 1:
                 awarded_line = 7
                 score2add = 400 * self.level
-                self.set_msg.t_spin_single += 1
+                self.t_spin_single += 1
             elif cleared_lines == 2:
                 awarded_line = 10
                 score2add = 1200 * self.level
-                self.set_msg.t_spin_double += 1
+                self.t_spin_double += 1
             elif cleared_lines == 3:
                 awarded_line = 13
                 score2add = 1600 * self.level
-                self.set_msg.t_spin_triple += 1
+                self.t_spin_triple += 1
+        elif is_t_spin == 2:
+            if cleared_lines == 0:
+                awarded_line = 1
+                score2add = 100 * self.level
+                self.mini_t_spin += 1
+            elif cleared_lines == 1:
+                awarded_line = 2
+                score2add = 200 * self.level
+                self.mini_t_spin_single += 1
         else:
             if cleared_lines == 0:
                 # no lines cleared, do not reset b2b
@@ -852,27 +986,26 @@ class Tetris:
             elif cleared_lines == 1:
                 score2add = 100 * self.level
                 self.b2b_bonus = False
-                self.set_msg.single += 1
+                self.single += 1
             elif cleared_lines == 2:
                 awarded_line = 1
                 score2add = 300 * self.level
                 self.b2b_bonus = False
-                self.set_msg.double += 1
+                self.double += 1
             elif cleared_lines == 3:
                 awarded_line = 2
                 score2add = 500 * self.level
                 self.b2b_bonus = False
-                self.set_msg.triple += 1
+                self.triple += 1
             elif cleared_lines == 4:
                 awarded_line = 4
                 score2add = 800 * self.level
-                self.set_msg.tetris += 1
+                self.tetris += 1
 
         # if b2b, line clear bonus * 1.5 and score * 1.5
         if bonus and self.b2b_bonus:
             self.lines_for_level += int((awarded_line + cleared_lines) * 1.5)
             self.score += int(1.5 * score2add)
-
         else:
             self.lines_for_level += awarded_line + cleared_lines
             self.score += score2add
@@ -896,15 +1029,17 @@ class Tetris:
         ) and self.level > 5:
             self.level = 5
 
-        self.generate_new_tetrimino()
+        return bonus
 
-        self.lock_down_timer = 0
-        self.lock_down_move_counter = 0
-        self.hold_once = False
+    def build_notice(self, is_t_spin: int, cleared_lines: int, was_b2b: bool) -> None:
+        """build and display the lock-down action notice.
 
-        # show notice
+        :param is_t_spin: whether the lock-down was a T-Spin
+        :param cleared_lines: number of lines cleared
+        :param was_b2b: whether back-to-back bonus was active before this lock-down
+        """
         notice = ""
-        if is_t_spin:
+        if is_t_spin == 1:
             if cleared_lines == 0:
                 notice = "T-Spin!"
             elif cleared_lines == 1:
@@ -913,6 +1048,11 @@ class Tetris:
                 notice = "T-Spin Double!"
             elif cleared_lines == 3:
                 notice = "T-Spin Triple!"
+        elif is_t_spin == 2:
+            if cleared_lines == 0:
+                notice = "T-Spin Mini!"
+            elif cleared_lines == 1:
+                notice = "T-Spin Mini Single!"
         elif cleared_lines == 1:
             notice = "Single!"
         elif cleared_lines == 2:
@@ -923,7 +1063,7 @@ class Tetris:
             notice = "Tetris!"
 
         if notice:
-            if self.b2b_bonus and bonus:
+            if self.b2b_bonus and was_b2b:
                 notice += " B2B!"
             self.set_notice(notice)
 
@@ -931,24 +1071,25 @@ class Tetris:
         """handle lock down"""
         if self.check_can_move_down():
             return
-        else:
-            # reset when move and rotate successfully
-            self.lock_down_timer += self.tick
+        # reset when move and rotate successfully
+        self.lock_down_timer += self.tick
 
         if self.lock_down_timer >= 0.5:
             self.lock_down()
 
     def handle_shadow(self):
         """handle shadow tetrimino"""
-        assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+        if self.cur_tetrimino is None:
+            raise RuntimeError("cur_tetrimino is None")
         self.shadow = self.cur_tetrimino.bodies[::]
 
         def helper():
-            assert self.cur_tetrimino is not None, "cur_tetrimino is None"
+            if self.cur_tetrimino is None:
+                raise RuntimeError("cur_tetrimino is None")
             for x, y in self.shadow:
                 if x + 1 >= len(self.board):
                     return False
-                if (x + 1, y) in self.board or (x + 1, y) in self.cur_tetrimino.bodies:
+                if (x + 1, y) in self.cur_tetrimino.bodies:
                     continue
                 if self.board[x + 1][y] != EMPTY:
                     return False
@@ -963,7 +1104,11 @@ class Tetris:
         """for digging mode, auto add one line at the bottom of the board in fixed time"""
         self.line_increment_timer += self.tick
 
-        if self.game_mode != GameMode.DIGGING or self.line_increment_timer < 5:
+        if (
+            self.game_mode != GameMode.DIGGING
+            or self.line_increment_timer < 5
+            or not self.check_can_move_down()  # when reach bottom, stop the line increment
+        ):
             return
         self.line_increment_timer = 0
 
@@ -971,10 +1116,7 @@ class Tetris:
         self.board.pop(0)
 
         # randomly set some empty cells
-        new_line = [
-            list(TetriminoShape)[random.randint(0, len(TetriminoShape) - 1)].value
-            for _ in range(self.BOARD_WIDTH)
-        ]
+        new_line = [TetriminoShape.GARBAGE.value] * self.BOARD_WIDTH
 
         indexes = list(range(self.BOARD_WIDTH))
         random.shuffle(indexes)
@@ -998,6 +1140,7 @@ class Tetris:
                 self.handle_shadow()
 
     def init_color(self) -> None:
+        """initialize terminal color pairs for each tetrimino shape"""
         if curses.COLORS > 16 and curses.can_change_color():
             # the color 0~7 is the default terminal color, use 8 or higher
             curses.init_color(TetriminoShape.I.value + 7, 0, 941, 941)  # cyan
@@ -1015,6 +1158,17 @@ class Tetris:
             for tetrimino in list(TetriminoShape):
                 curses.init_pair(tetrimino.value, tetrimino.value, tetrimino.value)
 
+    def get_color(self, shape: int) -> int:
+        """return the curses attribute for the given shape value
+
+        :param shape: the shape value (TetriminoShape.value)
+        :return: curses color pair for normal shapes, or A_REVERSE for GARBAGE
+        :rtype: int
+        """
+        if shape != TetriminoShape.GARBAGE.value:
+            return curses.color_pair(shape)
+        return curses.A_REVERSE
+
     def init_game(self) -> None:
         """init the game"""
         self.init_bag()
@@ -1023,11 +1177,27 @@ class Tetris:
         self.stdscr.timeout(0)
 
     def main(self) -> SettlementMessage:
+        """initialize and run the game, returning the settlement message on exit
+
+        :return: statistics collected during the game session
+        :rtype: SettlementMessage
+        """
         self.init_game()
         self.game_loop()
 
         # return the settlement message
-        self.set_msg.lines = self.lines
-        self.set_msg.score = self.score
-
-        return self.set_msg
+        return SettlementMessage(
+            self.lines,
+            self.score,
+            self.game_time,
+            self.single,
+            self.double,
+            self.triple,
+            self.tetris,
+            self.t_spin,
+            self.t_spin_single,
+            self.t_spin_double,
+            self.t_spin_triple,
+            self.mini_t_spin,
+            self.mini_t_spin_single,
+        )

@@ -47,9 +47,12 @@ class Settlement:
         height -= 2
         width -= 2
 
-        messages = self.set_msg.format(width - 2)
+        messages = self.set_msg.format(width)
+
+        start_row = (height - len(messages)) >> 1
+
         for i, line in enumerate(messages):
-            window.addstr(i * 2 + (height - 2 * len(messages)) // 2 + 1, 1, line)
+            window.addstr(i + start_row + 1, 1, line)
 
         window.refresh()
 
