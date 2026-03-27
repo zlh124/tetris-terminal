@@ -5,7 +5,7 @@ import random
 import time
 
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Generator
 
@@ -16,6 +16,9 @@ WINDOW_COLS = 44
 
 EMPTY = 0
 
+EMPTY_CELL = "  "
+SOLID_CELL = "██"
+SHADOW_CELL = "░░"
 
 # keymap
 MOVE_LEFT = [curses.KEY_LEFT, ord("A"), ord("a")]
@@ -30,6 +33,7 @@ PAUSE = [ord("p"), ord("P")]
 
 
 class TetriminoShape(Enum):
+    EMPTY = 0
     Z = 1
     S = 2
     O = 3
@@ -136,7 +140,7 @@ I_WALL_KICK_OFFSET = {
 }
 
 # build the ROTATE_TABLE
-for shape in list(TetriminoShape)[:-1]:
+for shape in list(TetriminoShape)[1:-1]:
     directions = list(Direction)
     _cw = [
         (directions[i], directions[(i + 1) % len(directions)], False)
@@ -308,7 +312,11 @@ class Tetris:
 
     @property
     def game_time(self) -> str:
-        time_diff = (datetime.now() - self.start_time).total_seconds()
+        if self.running_since is not None:
+            elapsed = self.elapsed + (datetime.now() - self.running_since)
+        else:
+            elapsed = self.elapsed
+        time_diff = elapsed.total_seconds()
         minutes = int(time_diff // 60)
         seconds = int(time_diff % 60)
         milliseconds = int((time_diff * 100) % 100)
@@ -323,7 +331,8 @@ class Tetris:
         self.lines = 0
         self.lines_for_level = 0
         self.level = 1
-        self.start_time = datetime.now()
+        self.elapsed = timedelta(0)
+        self.running_since: datetime | None = datetime.now()
 
         # settlement
         self.single = 0
@@ -367,7 +376,9 @@ class Tetris:
         self.notice = ""
 
         # Board, bag, shadow, settlement message
-        self.board = [[0] * self.BOARD_WIDTH for _ in range(self.BOARD_HEIGHT)]
+        self.board = [
+            [TetriminoShape.EMPTY] * self.BOARD_WIDTH for _ in range(self.BOARD_HEIGHT)
+        ]
         self.shadow: list[tuple[int, int]] = []
         self.bag: deque[Tetrimino] = deque(maxlen=14)
 
@@ -394,7 +405,7 @@ class Tetris:
 
     def replenish_bag(self) -> None:
         """replenish the bag with 7 random tetriminos"""
-        tmp = [Tetrimino(shape) for shape in list(TetriminoShape)[:-1]]
+        tmp = [Tetrimino(shape) for shape in list(TetriminoShape)[1:-1]]
         random.shuffle(tmp)
         self.bag.extend(tmp)
 
@@ -420,7 +431,7 @@ class Tetris:
     def generate_new_tetrimino(self) -> None:
         """generate a new tetrimino"""
         self.cur_tetrimino = self.get_tetrimino()
-        if any(self.board[x][y] != EMPTY for x, y in self.cur_tetrimino):
+        if any(self.board[x][y] != TetriminoShape.EMPTY for x, y in self.cur_tetrimino):
             self.game_over = True
         self.do_move_down()
 
@@ -432,12 +443,12 @@ class Tetris:
         """
         res = 0
         for row in range(self.BOARD_HEIGHT - 1, -1, -1):
-            while all(v != EMPTY for v in self.board[row]):
+            while all(v != TetriminoShape.EMPTY for v in self.board[row]):
                 res += 1
 
                 for i in range(row - 1, -1, -1):
                     self.board[i + 1] = self.board[i]
-                self.board[0] = [EMPTY] * self.BOARD_WIDTH
+                self.board[0] = [TetriminoShape.EMPTY] * self.BOARD_WIDTH
         return res
 
     def check_can_move_down(self) -> bool:
@@ -449,7 +460,7 @@ class Tetris:
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
-            if x + 1 >= self.BOARD_HEIGHT or self.board[x + 1][y] != EMPTY:
+            if x + 1 >= self.BOARD_HEIGHT or self.board[x + 1][y] != TetriminoShape.EMPTY:
                 return False
         return True
 
@@ -464,7 +475,7 @@ class Tetris:
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
-            if y - 1 < 0 or self.board[x][y - 1] != EMPTY:
+            if y - 1 < 0 or self.board[x][y - 1] != TetriminoShape.EMPTY:
                 return False
         return True
 
@@ -479,7 +490,7 @@ class Tetris:
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
-            if y + 1 >= self.BOARD_WIDTH or self.board[x][y + 1] != EMPTY:
+            if y + 1 >= self.BOARD_WIDTH or self.board[x][y + 1] != TetriminoShape.EMPTY:
                 return False
         return True
 
@@ -550,7 +561,7 @@ class Tetris:
         x, y = point
         return (
             0 <= x < self.BOARD_HEIGHT and 0 <= y < self.BOARD_WIDTH
-        ) and self.board[x][y] == EMPTY
+        ) and self.board[x][y] == TetriminoShape.EMPTY
 
     def check_points_empty(self, points: list[tuple[int, int]]) -> bool:
         """check if the given points are empty in the board
@@ -673,7 +684,7 @@ class Tetris:
             raise RuntimeError("cur_tetrimino is None")
         self.hold_once = True
         for x, y in self.cur_tetrimino:
-            self.board[x][y] = EMPTY
+            self.board[x][y] = TetriminoShape.EMPTY
         if self.hold is None:
             self.hold = self.cur_tetrimino
             self.generate_new_tetrimino()
@@ -715,16 +726,27 @@ class Tetris:
         for i in range(20, self.BOARD_HEIGHT):
             line = i - 19
             for j in range(self.BOARD_WIDTH):
-                window.addstr(line, 2 * j, "  ", self.get_color(self.board[i][j]))
+                cell = self.board[i][j]
+                window.addstr(
+                    line,
+                    2 * j,
+                    SOLID_CELL if cell != TetriminoShape.EMPTY else EMPTY_CELL,
+                    self.get_color(cell),
+                )
                 # shadow
-                if self.board[i][j] == EMPTY and (i, j) in self.shadow:
-                    window.addstr(line, 2 * j, "[]")
+                if (i, j) in self.shadow:
+                    window.addstr(
+                        line,
+                        2 * j,
+                        SHADOW_CELL,
+                        self.get_color(self.cur_tetrimino.shape),
+                    )
                 if (i, j) in self.cur_tetrimino:
                     window.addstr(
                         line,
                         2 * j,
-                        "  ",
-                        self.get_color(self.cur_tetrimino.shape.value),
+                        SOLID_CELL,
+                        self.get_color(self.cur_tetrimino.shape),
                     )
 
         self.board_window.refresh()
@@ -752,8 +774,8 @@ class Tetris:
                 window.addstr(
                     s_row + x + dx,
                     s_col + (y + dy) * 2,
-                    "  ",
-                    self.get_color(shape.value),
+                    SOLID_CELL,
+                    self.get_color(shape),
                 )
 
         window.refresh()
@@ -778,8 +800,8 @@ class Tetris:
                 window.addstr(
                     s_row + x + dx,
                     s_col + (y + dy) * 2,
-                    "  ",
-                    self.get_color(shape.value),
+                    SOLID_CELL,
+                    self.get_color(shape),
                 )
 
         window.refresh()
@@ -853,6 +875,12 @@ class Tetris:
         c = self.stdscr.getch()
         if c in PAUSE:
             self.paused = not self.paused
+            if self.paused:
+                if self.running_since is not None:
+                    self.elapsed += datetime.now() - self.running_since
+                    self.running_since = None
+            else:
+                self.running_since = datetime.now()
         if c in EXIT:
             self.game_over = True
 
@@ -924,7 +952,7 @@ class Tetris:
 
         # fill cur tetrimino to the board
         for x, y in self.cur_tetrimino:
-            self.board[x][y] = self.cur_tetrimino.no
+            self.board[x][y] = self.cur_tetrimino.shape
 
         is_t_spin = self.is_t_spin()
         cleared_lines = self.line_clear()
@@ -1091,7 +1119,7 @@ class Tetris:
                     return False
                 if (x + 1, y) in self.cur_tetrimino.bodies:
                     continue
-                if self.board[x + 1][y] != EMPTY:
+                if self.board[x + 1][y] != TetriminoShape.EMPTY:
                     return False
             return True
 
@@ -1116,13 +1144,13 @@ class Tetris:
         self.board.pop(0)
 
         # randomly set some empty cells
-        new_line = [TetriminoShape.GARBAGE.value] * self.BOARD_WIDTH
+        new_line = [TetriminoShape.GARBAGE] * self.BOARD_WIDTH
 
         indexes = list(range(self.BOARD_WIDTH))
         random.shuffle(indexes)
 
         for i in range(random.randint(1, 5)):
-            new_line[indexes[i]] = EMPTY
+            new_line[indexes[i]] = TetriminoShape.EMPTY
 
         self.board.append(new_line)
 
@@ -1151,23 +1179,25 @@ class Tetris:
             curses.init_color(TetriminoShape.S.value + 7, 0, 941, 0)  # green
             curses.init_color(TetriminoShape.Z.value + 7, 941, 0, 0)  # red
             for tetrimino in list(TetriminoShape):
-                curses.init_pair(
-                    tetrimino.value, tetrimino.value + 7, tetrimino.value + 7
-                )
+                if tetrimino == TetriminoShape.GARBAGE:
+                    continue
+                curses.init_pair(tetrimino.value, tetrimino.value + 7, -1)
         else:
             for tetrimino in list(TetriminoShape):
-                curses.init_pair(tetrimino.value, tetrimino.value, tetrimino.value)
+                if tetrimino == TetriminoShape.GARBAGE:
+                    continue
+                curses.init_pair(tetrimino.value, tetrimino.value, -1)
 
-    def get_color(self, shape: int) -> int:
+    def get_color(self, shape: TetriminoShape) -> int:
         """return the curses attribute for the given shape value
 
         :param shape: the shape value (TetriminoShape.value)
         :return: curses color pair for normal shapes, or A_REVERSE for GARBAGE
         :rtype: int
         """
-        if shape != TetriminoShape.GARBAGE.value:
-            return curses.color_pair(shape)
-        return curses.A_REVERSE
+        if shape != TetriminoShape.GARBAGE:
+            return curses.color_pair(shape.value)
+        return 0
 
     def init_game(self) -> None:
         """init the game"""
@@ -1187,8 +1217,8 @@ class Tetris:
 
         # return the settlement message
         return SettlementMessage(
-            self.lines,
             self.score,
+            self.lines,
             self.game_time,
             self.single,
             self.double,
