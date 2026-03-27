@@ -43,6 +43,10 @@ class TetriminoShape(Enum):
     L = 7
     GARBAGE = 8  # Garbage Tetrimino
 
+    @classmethod
+    def normal_tetriminos(cls):
+        return list(TetriminoShape)[1:-1]
+
     def __repr__(self) -> str:
         return f"TetriminoShape.{self.name}"
 
@@ -140,7 +144,7 @@ I_WALL_KICK_OFFSET = {
 }
 
 # build the ROTATE_TABLE
-for shape in list(TetriminoShape)[1:-1]:
+for shape in TetriminoShape.normal_tetriminos():
     directions = list(Direction)
     _cw = [
         (directions[i], directions[(i + 1) % len(directions)], False)
@@ -405,7 +409,7 @@ class Tetris:
 
     def replenish_bag(self) -> None:
         """replenish the bag with 7 random tetriminos"""
-        tmp = [Tetrimino(shape) for shape in list(TetriminoShape)[1:-1]]
+        tmp = [Tetrimino(shape) for shape in TetriminoShape.normal_tetriminos()]
         random.shuffle(tmp)
         self.bag.extend(tmp)
 
@@ -460,7 +464,10 @@ class Tetris:
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
-            if x + 1 >= self.BOARD_HEIGHT or self.board[x + 1][y] != TetriminoShape.EMPTY:
+            if (
+                x + 1 >= self.BOARD_HEIGHT
+                or self.board[x + 1][y] != TetriminoShape.EMPTY
+            ):
                 return False
         return True
 
@@ -490,7 +497,10 @@ class Tetris:
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
-            if y + 1 >= self.BOARD_WIDTH or self.board[x][y + 1] != TetriminoShape.EMPTY:
+            if (
+                y + 1 >= self.BOARD_WIDTH
+                or self.board[x][y + 1] != TetriminoShape.EMPTY
+            ):
                 return False
         return True
 
@@ -1169,7 +1179,8 @@ class Tetris:
 
     def init_color(self) -> None:
         """initialize terminal color pairs for each tetrimino shape"""
-        if curses.COLORS > 16 and curses.can_change_color():
+        colorful = curses.COLORS > 16 and curses.can_change_color()
+        if colorful:
             # the color 0~7 is the default terminal color, use 8 or higher
             curses.init_color(TetriminoShape.I.value + 7, 0, 941, 941)  # cyan
             curses.init_color(TetriminoShape.O.value + 7, 941, 941, 0)  # yellow
@@ -1178,15 +1189,12 @@ class Tetris:
             curses.init_color(TetriminoShape.J.value + 7, 0, 0, 941)  # blue
             curses.init_color(TetriminoShape.S.value + 7, 0, 941, 0)  # green
             curses.init_color(TetriminoShape.Z.value + 7, 941, 0, 0)  # red
-            for tetrimino in list(TetriminoShape):
-                if tetrimino == TetriminoShape.GARBAGE:
-                    continue
-                curses.init_pair(tetrimino.value, tetrimino.value + 7, -1)
-        else:
-            for tetrimino in list(TetriminoShape):
-                if tetrimino == TetriminoShape.GARBAGE:
-                    continue
-                curses.init_pair(tetrimino.value, tetrimino.value, -1)
+        for tetrimino in TetriminoShape.normal_tetriminos():
+            curses.init_pair(
+                tetrimino.value,
+                tetrimino.value + 7 if colorful else tetrimino.value,
+                -1,
+            )
 
     def get_color(self, shape: TetriminoShape) -> int:
         """return the curses attribute for the given shape value
