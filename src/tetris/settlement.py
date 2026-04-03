@@ -51,6 +51,10 @@ class Settlement:
 
         start_row = (height - len(messages)) >> 1
 
+        if self.set_msg.game_mode == "TIME ATTACK":
+            title = "TIME UP!"
+            window.addstr(start_row - 1, 1, f"{title:^{width}}")
+
         for i, line in enumerate(messages):
             window.addstr(i + start_row + 1, 1, line)
 
