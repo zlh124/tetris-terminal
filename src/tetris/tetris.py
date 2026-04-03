@@ -217,12 +217,14 @@ class GameMode(Enum):
     :1: casual mode, endless, max level 5
     :2: endless, max level 15
     :3: digging mode, max level 5, endless
+    :4: time attack, clear as many lines as possible in 2 minutes
     """
 
     _150_ROWS = 0
     CASUAL = 1
     ENDLESS = 2
     DIGGING = 3
+    TIME_ATTACK = 4
 
 
 class SettlementMessage:
@@ -243,11 +245,13 @@ class SettlementMessage:
         t_spin_triple: int,
         mini_t_spin: int,
         mini_t_spin_single: int,
+        game_mode: str = "",
     ) -> None:
         # Summary
         self.score = score
         self.lines = lines
         self.time = time
+        self.game_mode = game_mode
 
         # Line clear counts
         self.single = single
@@ -265,7 +269,11 @@ class SettlementMessage:
 
     def format(self, width: int) -> list[str]:
         harfw = width >> 1
-        msgs = [
+        if self.game_mode:
+            msgs = [f"Mode: {self.game_mode}"]
+        else:
+            msgs = []
+        msgs += [
             f"Score: {self.score}",
             f"Lines: {self.lines}",
             f"Time: {self.time}",
@@ -297,8 +305,9 @@ class SettlementMessage:
 
 class Tetris:
     # Game configuration
-    fps = 30  # 1 / 30 s per frame
-    tick = 0.001  # calculate tick 1 ms
+    fps = 30  # target 30 FPS
+    frame_interval = 1.0 / fps  # seconds per frame (~0.0333s)
+    time_attack_duration = 120  # 2 minutes for time attack mode
 
     # Board dimensions
     BOARD_WIDTH = 10
@@ -326,6 +335,21 @@ class Tetris:
         milliseconds = int((time_diff * 100) % 100)
         return f"{minutes:02d}:{seconds:02d}:{milliseconds:02d}"
 
+    @property
+    def time_remaining(self) -> str:
+        """remaining time for time attack mode"""
+        if self.running_since is not None:
+            elapsed = self.elapsed + (datetime.now() - self.running_since)
+        else:
+            elapsed = self.elapsed
+        remaining = self.time_attack_duration - elapsed.total_seconds()
+        if remaining <= 0:
+            return "00:00:00"
+        minutes = int(remaining // 60)
+        seconds = int(remaining % 60)
+        milliseconds = int((remaining * 100) % 100)
+        return f"{minutes:02d}:{seconds:02d}:{milliseconds:02d}"
+
     def __init__(self, stdscr: curses.window, game_mode: GameMode) -> None:
         self.stdscr = stdscr
         self.game_mode = game_mode
@@ -336,7 +360,7 @@ class Tetris:
         self.lines_for_level = 0
         self.level = 1
         self.elapsed = timedelta(0)
-        self.running_since: datetime | None = datetime.now()
+        self.running_since = datetime.now()
 
         # settlement
         self.single = 0
@@ -649,9 +673,9 @@ class Tetris:
         ]
         self.do_rotate(cur_direction, next_direction)
 
-    def normal_fall(self) -> None:
+    def normal_fall(self, dt: float) -> None:
         """fall the current tetrimino normally, called when normal fall timer is up"""
-        self.normal_fall_timer += self.tick
+        self.normal_fall_timer += dt
         if self.normal_fall_timer < self.fall_speed:
             return
         self.normal_fall_timer = 0
@@ -827,8 +851,12 @@ class Tetris:
         for row in range(0, height):
             window.addstr(row, 1, " " * (width))
 
-        window.addstr(1, 1, f"{'Time:':<{width}}")
-        window.addstr(2, 1, f"{self.game_time:>{width}}")
+        if self.game_mode == GameMode.TIME_ATTACK:
+            window.addstr(1, 1, f"{'Time:':<{width}}")
+            window.addstr(2, 1, f"{self.time_remaining:>{width}}")
+        else:
+            window.addstr(1, 1, f"{'Time:':<{width}}")
+            window.addstr(2, 1, f"{self.game_time:>{width}}")
         window.addstr(3, 1, f"{'Score:':<{width}}")
         window.addstr(4, 1, f"{str(self.score):>{width}}")
         window.addstr(5, 1, f"{'Lines:':<{width}}")
@@ -863,9 +891,9 @@ class Tetris:
 
         window.refresh()
 
-    def draw(self) -> None:
+    def draw(self, dt: float) -> None:
         """draw the game"""
-        self.frame_timer += self.tick
+        self.frame_timer += dt
         if self.frame_timer < 1 / self.fps:
             return
         self.frame_timer = 0
@@ -1053,6 +1081,14 @@ class Tetris:
         if self.game_mode == GameMode._150_ROWS and self.lines >= 150:
             self.game_over = True
 
+        if (
+            self.game_mode == GameMode.TIME_ATTACK
+            and self.running_since is not None
+            and (self.elapsed + (datetime.now() - self.running_since)).total_seconds()
+            >= self.time_attack_duration
+        ):
+            self.game_over = True
+
         # level up
         # max level 15
         if (
@@ -1105,12 +1141,12 @@ class Tetris:
                 notice += " B2B!"
             self.set_notice(notice)
 
-    def handle_lock_down(self) -> None:
+    def handle_lock_down(self, dt: float) -> None:
         """handle lock down"""
         if self.check_can_move_down():
             return
         # reset when move and rotate successfully
-        self.lock_down_timer += self.tick
+        self.lock_down_timer += dt
 
         if self.lock_down_timer >= 0.5:
             self.lock_down()
@@ -1138,9 +1174,9 @@ class Tetris:
                 x, y = self.shadow[i]
                 self.shadow[i] = x + 1, y
 
-    def handle_digging_mode(self) -> None:
+    def handle_digging_mode(self, dt: float) -> None:
         """for digging mode, auto add one line at the bottom of the board in fixed time"""
-        self.line_increment_timer += self.tick
+        self.line_increment_timer += dt
 
         if (
             self.game_mode != GameMode.DIGGING
@@ -1166,16 +1202,36 @@ class Tetris:
 
     def game_loop(self) -> None:
         """main game loop"""
+        last_time = time.time()
         while not self.game_over:
+            current_time = time.time()
+            dt = current_time - last_time
+            last_time = current_time
+
             self.handle_input()
-            time.sleep(self.tick)
-            self.draw()
+            self.draw(dt)
 
             if not self.paused:
-                self.handle_digging_mode()
-                self.normal_fall()
-                self.handle_lock_down()
+                self.handle_digging_mode(dt)
+                self.normal_fall(dt)
+                self.handle_lock_down(dt)
                 self.handle_shadow()
+
+                if (
+                    self.game_mode == GameMode.TIME_ATTACK
+                    and self.running_since is not None
+                    and (
+                        self.elapsed + (datetime.now() - self.running_since)
+                    ).total_seconds()
+                    >= self.time_attack_duration
+                ):
+                    self.game_over = True
+
+            # Sleep remaining time to maintain target frame rate
+            elapsed = time.time() - current_time
+            sleep_time = self.frame_interval - elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
     def init_color(self) -> None:
         """initialize terminal color pairs for each tetrimino shape"""
@@ -1224,6 +1280,13 @@ class Tetris:
         self.game_loop()
 
         # return the settlement message
+        mode_names = {
+            GameMode._150_ROWS: "150 ROWS",
+            GameMode.CASUAL: "CASUAL",
+            GameMode.ENDLESS: "ENDLESS",
+            GameMode.DIGGING: "DIGGING",
+            GameMode.TIME_ATTACK: "TIME ATTACK",
+        }
         return SettlementMessage(
             self.score,
             self.lines,
@@ -1238,4 +1301,5 @@ class Tetris:
             self.t_spin_triple,
             self.mini_t_spin,
             self.mini_t_spin_single,
+            game_mode=mode_names.get(self.game_mode, ""),
         )

@@ -11,7 +11,8 @@ class Sections(Enum):
     CASUAL = 1
     ENDLESS = 2
     DIGGING = 3
-    QUIT = 4
+    TIME_ATTACK = 4
+    QUIT = 5
 
 
 class Menu:
