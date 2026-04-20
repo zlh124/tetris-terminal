@@ -1,14 +1,14 @@
 """program entrance"""
 
-import curses
 import argparse
+import curses
 
 
-from tetris.tetris import WINDOW_ROWS, WINDOW_COLS
+from tetris.constants import WINDOW_COLS, WINDOW_ROWS
 from tetris.menu import Menu, Sections
+from tetris.settlement import Settlement
 from tetris.tetris import Tetris, GameMode
 from tetris.utils import get_version
-from tetris.settlement import Settlement
 
 
 def wrapper(stdscr: curses.window) -> int:

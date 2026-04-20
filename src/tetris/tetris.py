@@ -4,181 +4,31 @@ import curses
 import random
 import time
 
-from collections import defaultdict, deque
+from collections import deque
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Generator
 
-from .utils import rotate_points
-
-WINDOW_ROWS = 22
-WINDOW_COLS = 44
-
-EMPTY = 0
-
-EMPTY_CELL = "  "
-SOLID_CELL = "██"
-SHADOW_CELL = "░░"
-
-# keymap
-MOVE_LEFT = [curses.KEY_LEFT, ord("A"), ord("a")]
-MOVE_RIGHT = [curses.KEY_RIGHT, ord("D"), ord("d")]
-SOFT_DROP = [curses.KEY_DOWN, ord("s"), ord("S")]
-ROTATE_CW = [curses.KEY_UP, ord("x"), ord("X"), ord("w"), ord("W")]
-ROTATE_CCW = [ord("z"), ord("Z")]
-HOLD = [ord("c"), ord("C")]
-HARD_DROP = [ord(" ")]
-EXIT = [ord("q"), ord("Q")]
-PAUSE = [ord("p"), ord("P")]
-
-
-class TetriminoShape(Enum):
-    EMPTY = 0
-    Z = 1
-    S = 2
-    O = 3
-    J = 4
-    T = 5
-    I = 6
-    L = 7
-    GARBAGE = 8  # Garbage Tetrimino
-
-    @classmethod
-    def normal_tetriminos(cls):
-        return list(TetriminoShape)[1:-1]
-
-    def __repr__(self) -> str:
-        return f"TetriminoShape.{self.name}"
-
-
-class Direction(Enum):
-    NORTH = 0
-    EAST = 1
-    SOUTH = 2
-    WEST = 3
-
-    def __repr__(self) -> str:
-        return f"Direction.{self.name}"
-
-
-SHAPE_TABLE = {
-    TetriminoShape.I: [(0, 0), (0, 1), (0, 2), (0, 3)],
-    TetriminoShape.J: [(0, 0), (1, 0), (1, 1), (1, 2)],
-    TetriminoShape.L: [(0, 0), (0, 1), (0, 2), (-1, 2)],
-    TetriminoShape.O: [(0, 0), (0, 1), (1, 0), (1, 1)],
-    TetriminoShape.S: [(0, 0), (0, 1), (-1, 1), (-1, 2)],
-    TetriminoShape.T: [(0, 0), (0, 1), (-1, 1), (0, 2)],
-    TetriminoShape.Z: [(0, 0), (0, 1), (1, 1), (1, 2)],
-}
-
-# the standard rotate axis
-ROTATE_AXIS = {
-    TetriminoShape.I: [(0, 1), (1, 2)],
-    TetriminoShape.J: [1, 1],
-    TetriminoShape.L: [0, 1],
-    TetriminoShape.O: [(0, 1), (0, 1)],
-    TetriminoShape.S: [0, 1],
-    TetriminoShape.T: [0, 1],
-    TetriminoShape.Z: [1, 1],
-}
-
-# the offset for preview and hold
-SHOW_OFFSET = {
-    TetriminoShape.I: (1, 0),
-    TetriminoShape.J: (1, 0),
-    TetriminoShape.L: (2, 0),
-    TetriminoShape.O: (1, 0),
-    TetriminoShape.S: (2, 0),
-    TetriminoShape.T: (2, 0),
-    TetriminoShape.Z: (1, 0),
-}
-
-# the tetrimino generation position in the board
-GENERATE_POSITION = {
-    TetriminoShape.I: (19, 3),
-    TetriminoShape.J: (18, 3),
-    TetriminoShape.L: (19, 3),
-    TetriminoShape.O: (18, 4),
-    TetriminoShape.S: (19, 3),
-    TetriminoShape.T: (19, 3),
-    TetriminoShape.Z: (18, 3),
-}
-
-
-# SRS (super rotate system), retrieve the table for rotate position
-# {shape: {(start_direction, end_direction): {standard_rotate_diff: [x, y], offsets: [(x, y),...]}}}
-ROTATE_TABLE = defaultdict(lambda: defaultdict(dict))
-
-
-JLSTZ_WALL_KICK_OFFSET = {
-    (Direction.NORTH, Direction.EAST): [(0, 0), (0, -1), (-1, -1), (2, 0), (2, -1)],
-    (Direction.EAST, Direction.NORTH): [(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)],
-    (Direction.EAST, Direction.SOUTH): [(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)],
-    (Direction.SOUTH, Direction.EAST): [(0, 0), (0, -1), (-1, -1), (2, 0), (2, -1)],
-    (Direction.SOUTH, Direction.WEST): [(0, 0), (0, 1), (-1, 1), (2, 0), (2, 1)],
-    (Direction.WEST, Direction.SOUTH): [(0, 0), (0, -1), (1, -1), (-2, 0), (-2, -1)],
-    (Direction.WEST, Direction.NORTH): [(0, 0), (0, -1), (1, -1), (-2, 0), (-2, -1)],
-    (Direction.NORTH, Direction.WEST): [(0, 0), (0, 1), (-1, 1), (2, 0), (2, 1)],
-}
-
-O_WALL_KICK_OFFSET = {
-    (Direction.NORTH, Direction.EAST): [(0, 0)],
-    (Direction.EAST, Direction.NORTH): [(0, 0)],
-    (Direction.EAST, Direction.SOUTH): [(0, 0)],
-    (Direction.SOUTH, Direction.EAST): [(0, 0)],
-    (Direction.SOUTH, Direction.WEST): [(0, 0)],
-    (Direction.WEST, Direction.SOUTH): [(0, 0)],
-    (Direction.WEST, Direction.NORTH): [(0, 0)],
-    (Direction.NORTH, Direction.WEST): [(0, 0)],
-}
-
-I_WALL_KICK_OFFSET = {
-    (Direction.NORTH, Direction.EAST): [(0, 0), (0, -2), (0, 1), (1, -2), (-2, 1)],
-    (Direction.EAST, Direction.NORTH): [(0, 0), (0, 2), (0, -1), (-1, 2), (2, -1)],
-    (Direction.EAST, Direction.SOUTH): [(0, 0), (0, -1), (0, 2), (-2, -1), (1, 2)],
-    (Direction.SOUTH, Direction.EAST): [(0, 0), (0, 1), (0, -2), (2, 1), (-1, -2)],
-    (Direction.SOUTH, Direction.WEST): [(0, 0), (0, 2), (0, -1), (-1, 2), (2, -1)],
-    (Direction.WEST, Direction.SOUTH): [(0, 0), (0, -2), (0, 1), (1, -2), (-2, 1)],
-    (Direction.WEST, Direction.NORTH): [(0, 0), (0, 1), (0, -2), (2, 1), (-1, -2)],
-    (Direction.NORTH, Direction.WEST): [(0, 0), (0, -1), (0, 2), (-2, -1), (1, 2)],
-}
-
-# build the ROTATE_TABLE
-for shape in TetriminoShape.normal_tetriminos():
-    directions = list(Direction)
-    _cw = [
-        (directions[i], directions[(i + 1) % len(directions)], False)
-        for i in range(len(directions))
-    ]
-    _ccw = [
-        (
-            directions[i],
-            directions[(len(directions) + (i - 1)) % len(directions)],
-            True,
-        )
-        for i in range(0, -len(directions), -1)
-    ]
-
-    cur_pos = SHAPE_TABLE[shape][::]
-    for start, end, ccw in _cw + _ccw:
-        rotated = rotate_points(cur_pos, ROTATE_AXIS[shape], ccw)
-        diff = [(rx - x, ry - y) for (rx, ry), (x, y) in list(zip(rotated, cur_pos))]
-        cur_pos = rotated
-
-        ROTATE_TABLE[shape][(start, end)]["standard_rotate_diff"] = diff
-
-        if shape == TetriminoShape.I:
-            ROTATE_TABLE[shape][(start, end)]["offsets"] = I_WALL_KICK_OFFSET[
-                (start, end)
-            ]
-        elif shape == TetriminoShape.O:
-            ROTATE_TABLE[shape][(start, end)]["offsets"] = O_WALL_KICK_OFFSET[
-                (start, end)
-            ]
-        else:
-            ROTATE_TABLE[shape][(start, end)]["offsets"] = JLSTZ_WALL_KICK_OFFSET[
-                (start, end)
-            ]
+from tetris.constants import (
+    EMPTY_CELL,
+    EXIT,
+    GENERATE_POSITION,
+    HARD_DROP,
+    HOLD,
+    MOVE_LEFT,
+    MOVE_RIGHT,
+    PAUSE,
+    ROTATE_CCW,
+    ROTATE_CW,
+    ROTATE_TABLE,
+    SHADOW_CELL,
+    SHAPE_TABLE,
+    SHOW_OFFSET,
+    SOFT_DROP,
+    SOLID_CELL,
+)
+from tetris.enums import Direction, GameMode, TetriminoShape
+from tetris.settlement import SettlementMessage
 
 
 class Tetrimino:
@@ -209,100 +59,6 @@ class Tetrimino:
         self.bodies[index] = value
 
 
-class GameMode(Enum):
-    """
-    game mode
-
-    :0: 150 rows, when lines >= 150, settlement game.
-    :1: casual mode, endless, max level 5
-    :2: endless, max level 15
-    :3: digging mode, max level 5, endless
-    :4: time attack, clear as many lines as possible in 2 minutes
-    """
-
-    _150_ROWS = 0
-    CASUAL = 1
-    ENDLESS = 2
-    DIGGING = 3
-    TIME_ATTACK = 4
-
-
-class SettlementMessage:
-    """game settlement message"""
-
-    def __init__(
-        self,
-        score: int,
-        lines: int,
-        time: str,
-        single: int,
-        double: int,
-        triple: int,
-        tetris: int,
-        t_spin: int,
-        t_spin_single: int,
-        t_spin_double: int,
-        t_spin_triple: int,
-        mini_t_spin: int,
-        mini_t_spin_single: int,
-        game_mode: str = "",
-    ) -> None:
-        # Summary
-        self.score = score
-        self.lines = lines
-        self.time = time
-        self.game_mode = game_mode
-
-        # Line clear counts
-        self.single = single
-        self.double = double
-        self.triple = triple
-        self.tetris = tetris
-
-        # T-Spin counts
-        self.t_spin = t_spin
-        self.t_spin_single = t_spin_single
-        self.t_spin_double = t_spin_double
-        self.t_spin_triple = t_spin_triple
-        self.mini_t_spin = mini_t_spin
-        self.mini_t_spin_single = mini_t_spin_single
-
-    def format(self, width: int) -> list[str]:
-        harfw = width >> 1
-        if self.game_mode:
-            msgs = [f"Mode: {self.game_mode}"]
-        else:
-            msgs = []
-        msgs += [
-            f"Score: {self.score}",
-            f"Lines: {self.lines}",
-            f"Time: {self.time}",
-            f"Single: {self.single}",
-            f"Double: {self.double}",
-            f"Triple: {self.triple}",
-            f"Tetris: {self.tetris}",
-            f"T-Spin: {self.t_spin}",
-            f"T-Spin Single: {self.t_spin_single}",
-            f"T-Spin Double: {self.t_spin_double}",
-            f"T-Spin Triple: {self.t_spin_triple}",
-            f"Mini-T-Spin: {self.mini_t_spin}",
-            f"Mini-T-Spin Single: {self.mini_t_spin_single}",
-        ]
-        i = 0
-        res = []
-        cur_line = ""
-        while i < len(msgs):
-            if len(cur_line) + harfw > width or len(msgs[i]) > harfw:
-                res.append(f"{cur_line:^{width}}")
-                cur_line = ""
-            else:
-                cur_line += f"{msgs[i]:^{harfw}}"
-                i += 1
-            if i == len(msgs):
-                res.append(f"{cur_line:^{width}}")
-        return res
-
-
 class Tetris:
     # Game configuration
     fps = 30  # target 30 FPS
@@ -314,6 +70,10 @@ class Tetris:
     BOARD_HEIGHT = 40
 
     MAX_LOCK_DOWN_MOVE_COUNT = 15
+
+    # Line-clear animation
+    clear_anim_duration = 0.3
+    clear_anim_flash_interval = 0.05
 
     class Movement(Enum):
         MOVE = 0
@@ -377,6 +137,9 @@ class Tetris:
         # Game flow
         self.game_over = False
         self.paused = False
+        self.animating = False
+        self.clear_anim_start: float = 0
+        self.pending_t_spin: int = 0
 
         # Piece state
         self.cur_tetrimino = None
@@ -755,33 +518,43 @@ class Tetris:
 
         width -= 1
 
-        if self.cur_tetrimino is None:
+        if not self.animating and self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
+
+        flash_on = int(time.time() / self.clear_anim_flash_interval) % 2 == 0
+        cur = self.cur_tetrimino
+
         for i in range(20, self.BOARD_HEIGHT):
             line = i - 19
             for j in range(self.BOARD_WIDTH):
                 cell = self.board[i][j]
-                window.addstr(
-                    line,
-                    2 * j,
-                    SOLID_CELL if cell != TetriminoShape.EMPTY else EMPTY_CELL,
-                    self.get_color(cell),
-                )
-                # shadow
-                if (i, j) in self.shadow:
+                if cell == TetriminoShape.CLEAR:
+                    if flash_on:
+                        window.addstr(line, 2 * j, SOLID_CELL, self.get_color(TetriminoShape.CLEAR))
+                    else:
+                        window.addstr(line, 2 * j, EMPTY_CELL, 0)
+                else:
                     window.addstr(
                         line,
                         2 * j,
-                        SHADOW_CELL,
-                        self.get_color(self.cur_tetrimino.shape),
+                        SOLID_CELL if cell != TetriminoShape.EMPTY else EMPTY_CELL,
+                        self.get_color(cell),
                     )
-                if (i, j) in self.cur_tetrimino:
-                    window.addstr(
-                        line,
-                        2 * j,
-                        SOLID_CELL,
-                        self.get_color(self.cur_tetrimino.shape),
-                    )
+                    if not self.animating and cur is not None:
+                        if (i, j) in self.shadow:
+                            window.addstr(
+                                line,
+                                2 * j,
+                                SHADOW_CELL,
+                                self.get_color(cur.shape),
+                            )
+                        if (i, j) in cur:
+                            window.addstr(
+                                line,
+                                2 * j,
+                                SOLID_CELL,
+                                self.get_color(cur.shape),
+                            )
 
         self.board_window.refresh()
 
@@ -922,7 +695,7 @@ class Tetris:
         if c in EXIT:
             self.game_over = True
 
-        if self.paused:
+        if self.paused or self.animating:
             return
 
         if c in MOVE_LEFT:
@@ -992,18 +765,39 @@ class Tetris:
         for x, y in self.cur_tetrimino:
             self.board[x][y] = self.cur_tetrimino.shape
 
-        is_t_spin = self.is_t_spin()
-        cleared_lines = self.line_clear()
+        self.pending_t_spin = self.is_t_spin()
 
-        was_b2b = self.calculate_score(is_t_spin, cleared_lines)
-
-        self.generate_new_tetrimino()
+        # mark full rows with CLEAR for animation
+        has_clear = False
+        for row in range(self.BOARD_HEIGHT - 1, -1, -1):
+            if all(v != TetriminoShape.EMPTY for v in self.board[row]):
+                for col in range(self.BOARD_WIDTH):
+                    self.board[row][col] = TetriminoShape.CLEAR
+                has_clear = True
 
         self.lock_down_timer = 0
         self.lock_down_move_counter = 0
         self.hold_once = False
 
-        self.build_notice(is_t_spin, cleared_lines, was_b2b)
+        if has_clear:
+            self.animating = True
+            self.clear_anim_start = time.time()
+        else:
+            self.finish_lock_down()
+
+    def finish_lock_down(self) -> None:
+        """clear marked rows, update score, and spawn the next piece"""
+        cleared_lines = self.line_clear()
+        was_b2b = self.calculate_score(self.pending_t_spin, cleared_lines)
+        self.generate_new_tetrimino()
+        self.build_notice(self.pending_t_spin, cleared_lines, was_b2b)
+        self.pending_t_spin = 0
+
+    def handle_line_clear_anim(self) -> None:
+        """end the animation and process line clear once the duration has elapsed"""
+        if time.time() - self.clear_anim_start >= self.clear_anim_duration:
+            self.animating = False
+            self.finish_lock_down()
 
     def calculate_score(self, is_t_spin: int, cleared_lines: int) -> bool:
         """calculate and apply score, lines, level, and settlement stats for a lock-down event.
@@ -1212,20 +1006,23 @@ class Tetris:
             self.draw(dt)
 
             if not self.paused:
-                self.handle_digging_mode(dt)
-                self.normal_fall(dt)
-                self.handle_lock_down(dt)
-                self.handle_shadow()
+                if self.animating:
+                    self.handle_line_clear_anim()
+                else:
+                    self.handle_digging_mode(dt)
+                    self.normal_fall(dt)
+                    self.handle_lock_down(dt)
+                    self.handle_shadow()
 
-                if (
-                    self.game_mode == GameMode.TIME_ATTACK
-                    and self.running_since is not None
-                    and (
-                        self.elapsed + (datetime.now() - self.running_since)
-                    ).total_seconds()
-                    >= self.time_attack_duration
-                ):
-                    self.game_over = True
+                    if (
+                        self.game_mode == GameMode.TIME_ATTACK
+                        and self.running_since is not None
+                        and (
+                            self.elapsed + (datetime.now() - self.running_since)
+                        ).total_seconds()
+                        >= self.time_attack_duration
+                    ):
+                        self.game_over = True
 
             # Sleep remaining time to maintain target frame rate
             elapsed = time.time() - current_time
@@ -1251,6 +1048,7 @@ class Tetris:
                 tetrimino.value + 7 if colorful else tetrimino.value,
                 -1,
             )
+        curses.init_pair(TetriminoShape.CLEAR.value, curses.COLOR_WHITE, -1)
 
     def get_color(self, shape: TetriminoShape) -> int:
         """return the curses attribute for the given shape value
