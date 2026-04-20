@@ -3,16 +3,9 @@
 import curses
 from enum import Enum
 
-from .tetris import WINDOW_ROWS, WINDOW_COLS
+from tetris.constants import WINDOW_COLS, WINDOW_ROWS
+from tetris.enums import Sections
 
-
-class Sections(Enum):
-    _150_ROWS = 0
-    CASUAL = 1
-    ENDLESS = 2
-    DIGGING = 3
-    TIME_ATTACK = 4
-    QUIT = 5
 
 
 class Menu:

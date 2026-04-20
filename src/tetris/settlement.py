@@ -1,8 +1,84 @@
 """settlement display ui"""
 
 import curses
-from .tetris import WINDOW_ROWS, WINDOW_COLS
-from .tetris import SettlementMessage
+
+from tetris.constants import WINDOW_COLS, WINDOW_ROWS
+
+
+class SettlementMessage:
+    """game settlement message"""
+
+    def __init__(
+        self,
+        score: int,
+        lines: int,
+        time: str,
+        single: int,
+        double: int,
+        triple: int,
+        tetris: int,
+        t_spin: int,
+        t_spin_single: int,
+        t_spin_double: int,
+        t_spin_triple: int,
+        mini_t_spin: int,
+        mini_t_spin_single: int,
+        game_mode: str = "",
+    ) -> None:
+        # Summary
+        self.score = score
+        self.lines = lines
+        self.time = time
+        self.game_mode = game_mode
+
+        # Line clear counts
+        self.single = single
+        self.double = double
+        self.triple = triple
+        self.tetris = tetris
+
+        # T-Spin counts
+        self.t_spin = t_spin
+        self.t_spin_single = t_spin_single
+        self.t_spin_double = t_spin_double
+        self.t_spin_triple = t_spin_triple
+        self.mini_t_spin = mini_t_spin
+        self.mini_t_spin_single = mini_t_spin_single
+
+    def format(self, width: int) -> list[str]:
+        harfw = width >> 1
+        if self.game_mode:
+            msgs = [f"Mode: {self.game_mode}"]
+        else:
+            msgs = []
+        msgs += [
+            f"Score: {self.score}",
+            f"Lines: {self.lines}",
+            f"Time: {self.time}",
+            f"Single: {self.single}",
+            f"Double: {self.double}",
+            f"Triple: {self.triple}",
+            f"Tetris: {self.tetris}",
+            f"T-Spin: {self.t_spin}",
+            f"T-Spin Single: {self.t_spin_single}",
+            f"T-Spin Double: {self.t_spin_double}",
+            f"T-Spin Triple: {self.t_spin_triple}",
+            f"Mini-T-Spin: {self.mini_t_spin}",
+            f"Mini-T-Spin Single: {self.mini_t_spin_single}",
+        ]
+        i = 0
+        res = []
+        cur_line = ""
+        while i < len(msgs):
+            if len(cur_line) + harfw > width or len(msgs[i]) > harfw:
+                res.append(f"{cur_line:^{width}}")
+                cur_line = ""
+            else:
+                cur_line += f"{msgs[i]:^{harfw}}"
+                i += 1
+            if i == len(msgs):
+                res.append(f"{cur_line:^{width}}")
+        return res
 
 
 class Settlement:
