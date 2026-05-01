@@ -2,7 +2,8 @@
 
 import curses
 
-from tetris.constants import WINDOW_COLS, WINDOW_ROWS
+from tetris.constants import BD_V, BD_VL, BD_VR, WINDOW_COLS, WINDOW_ROWS
+from tetris.utils import draw_win_border
 
 
 class SettlementMessage:
@@ -88,24 +89,19 @@ class Settlement:
 
         self.title_window = curses.newwin(6, WINDOW_COLS)
         self.show_window = curses.newwin(WINDOW_ROWS - 8, WINDOW_COLS, 6, 0)
-        self.version_window = curses.newwin(2, WINDOW_COLS, WINDOW_ROWS - 2, 0)
+        self.notice_window = curses.newwin(2, WINDOW_COLS, WINDOW_ROWS - 2, 0)
 
-        self.title_window.border(
-            0, 0, 0, ord(" "), 0, 0, curses.ACS_VLINE, curses.ACS_VLINE
-        )
-        self.show_window.border(
-            0,
-            0,
-            0,
-            0,
-            curses.ACS_LTEE,
-            curses.ACS_RTEE,
-            curses.ACS_LTEE,
-            curses.ACS_RTEE,
-        )
-        self.version_window.border(
-            0, 0, ord(" "), 0, curses.ACS_VLINE, curses.ACS_VLINE
-        )
+    def draw_border(self) -> None:
+        title_win = self.title_window
+        show_win = self.show_window
+        notice_win = self.notice_window
+
+        draw_win_border(title_win, bs="", bl=BD_V, br=BD_V)
+        draw_win_border(show_win, tl=BD_VR, tr=BD_VL, bl=BD_VR, br=BD_VL)
+        draw_win_border(notice_win, ts="", tl=BD_V, tr=BD_V)
+
+        title_win.refresh()
+        show_win.refresh()
 
     def draw_title(self) -> None:
         """draw title"""
@@ -136,9 +132,9 @@ class Settlement:
 
         window.refresh()
 
-    def draw_version(self) -> None:
+    def draw_notice(self) -> None:
         """draw version"""
-        window = self.version_window
+        window = self.notice_window
         _, width = window.getmaxyx()
 
         notice = "'q' to quit, 'r' to retry."
@@ -147,9 +143,10 @@ class Settlement:
         window.refresh()
 
     def draw(self) -> None:
+        self.draw_border()
         self.draw_title()
         self.draw_show()
-        self.draw_version()
+        self.draw_notice()
 
     def loop(self) -> int:
         while True:

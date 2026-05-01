@@ -10,6 +10,12 @@ from enum import Enum
 from typing import Any, Generator
 
 from tetris.constants import (
+    BD_H,
+    BD_HB,
+    BD_HT,
+    BD_V,
+    BD_VL,
+    BD_VR,
     EMPTY_CELL,
     EXIT,
     GENERATE_POSITION,
@@ -29,10 +35,10 @@ from tetris.constants import (
 )
 from tetris.enums import Direction, GameMode, TetriminoShape
 from tetris.settlement import SettlementMessage
+from tetris.utils import draw_win_border
 
 
 class Tetrimino:
-
     ## line0  0000000000 -
     ## ...               |>  buffer zone
     ## line19 0000000000 -
@@ -72,8 +78,8 @@ class Tetris:
     MAX_LOCK_DOWN_MOVE_COUNT = 15
 
     # Line-clear animation
-    clear_anim_duration = 0.3
     clear_anim_flash_interval = 0.05
+    clear_anim_duration = 0.3
 
     class Movement(Enum):
         MOVE = 0
@@ -84,12 +90,17 @@ class Tetris:
         return (0.8 - ((self.level - 1) * 0.007)) ** (self.level - 1)
 
     @property
-    def game_time(self) -> str:
+    def game_time(self) -> float:
+        "game time in second"
         if self.running_since is not None:
             elapsed = self.elapsed + (datetime.now() - self.running_since)
         else:
             elapsed = self.elapsed
-        time_diff = elapsed.total_seconds()
+        return elapsed.total_seconds()
+
+    @property
+    def game_time_str(self) -> str:
+        time_diff = self.game_time
         minutes = int(time_diff // 60)
         seconds = int(time_diff % 60)
         milliseconds = int((time_diff * 100) % 100)
@@ -178,21 +189,6 @@ class Tetris:
         self.notice_window = curses.newwin(4, 12, 18, 0)
         self.board_window = curses.newwin(22, 21, 0, 12)
         self.preview_window = curses.newwin(22, 12, 0, 32)
-
-        # can't use from curses import ***. only curses.initscr() is called
-        LTEE = curses.ACS_LTEE
-        RTEE = curses.ACS_RTEE
-        TTEE = curses.ACS_TTEE
-        BTEE = curses.ACS_BTEE
-
-        VLINE = curses.ACS_VLINE
-        HLINE = curses.ACS_HLINE
-
-        self.hold_window.border(0, 0, 0, 0, 0, TTEE, LTEE, RTEE)
-        self.info_window.border(0, 0, 0, 0, VLINE, VLINE, LTEE, RTEE)
-        self.notice_window.border(0, 0, 0, 0, VLINE, VLINE, 0, BTEE)
-        self.preview_window.border(0, 0, 0, 0, TTEE, 0, BTEE, 0)
-        self.board_window.border(0, 0, 0, 0, HLINE, 0, HLINE, BTEE)
 
     def replenish_bag(self) -> None:
         """replenish the bag with 7 random tetriminos"""
@@ -415,7 +411,8 @@ class Tetris:
                 return
 
     def do_rotate_cw(self) -> None:
-        """try rotate the current tetrimino clockwise, called when key cw is pressed"""
+        """try rotate the current tetrimino clockwise,
+        called when key cw is pressed"""
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
         cur_direction = self.cur_tetrimino.direction
@@ -426,7 +423,8 @@ class Tetris:
         self.do_rotate(cur_direction, next_direction)
 
     def do_rotate_ccw(self) -> None:
-        """try rotate the current tetrimino counterclockwise, called when key ccw is pressed"""
+        """try rotate the current tetrimino counterclockwise,
+        called when key ccw is pressed"""
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
         cur_direction = self.cur_tetrimino.direction
@@ -437,7 +435,8 @@ class Tetris:
         self.do_rotate(cur_direction, next_direction)
 
     def normal_fall(self, dt: float) -> None:
-        """fall the current tetrimino normally, called when normal fall timer is up"""
+        """fall the current tetrimino normally,
+        called when normal fall timer is up"""
         self.normal_fall_timer += dt
         if self.normal_fall_timer < self.fall_speed:
             return
@@ -511,6 +510,26 @@ class Tetris:
             return ""
         return self.notice
 
+    def draw_border(self) -> None:
+        """draw border"""
+        hold_win = self.hold_window
+        info_win = self.info_window
+        notice_win = self.notice_window
+        board_win = self.board_window
+        preview_win = self.preview_window
+
+        draw_win_border(hold_win, tr=BD_HB, bl=BD_VR, br=BD_VL)
+        draw_win_border(info_win, ts="", tl=BD_V, tr=BD_V, bl=BD_VR, br=BD_VL)
+        draw_win_border(notice_win, ts="", tl=BD_V, tr=BD_V, br=BD_HT)
+        draw_win_border(preview_win, tl=BD_HB, bl=BD_HT)
+        draw_win_border(board_win, ls="", tl=BD_H, tr="", bl=BD_H, br=BD_HT)
+
+        hold_win.refresh()
+        info_win.refresh()
+        notice_win.refresh()
+        board_win.refresh()
+        preview_win.refresh()
+
     def draw_board(self) -> None:
         """draw board"""
         window = self.board_window
@@ -518,43 +537,42 @@ class Tetris:
 
         width -= 1
 
-        if not self.animating and self.cur_tetrimino is None:
+        if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
 
-        flash_on = int(time.time() / self.clear_anim_flash_interval) % 2 == 0
         cur = self.cur_tetrimino
+        cleared_lines = set()
 
         for i in range(20, self.BOARD_HEIGHT):
             line = i - 19
             for j in range(self.BOARD_WIDTH):
                 cell = self.board[i][j]
                 if cell == TetriminoShape.CLEAR:
-                    if flash_on:
-                        window.addstr(line, 2 * j, SOLID_CELL, self.get_color(TetriminoShape.CLEAR))
-                    else:
-                        window.addstr(line, 2 * j, EMPTY_CELL, 0)
-                else:
+                    cleared_lines.add(i)
+                window.addstr(
+                    line,
+                    2 * j,
+                    SOLID_CELL if cell != TetriminoShape.EMPTY else EMPTY_CELL,
+                    self.get_color(cell),
+                )
+                if (i, j) in self.shadow:
                     window.addstr(
                         line,
                         2 * j,
-                        SOLID_CELL if cell != TetriminoShape.EMPTY else EMPTY_CELL,
-                        self.get_color(cell),
+                        SHADOW_CELL,
+                        self.get_color(
+                            TetriminoShape.CLEAR if i in cleared_lines else cur.shape
+                        ),
                     )
-                    if not self.animating and cur is not None:
-                        if (i, j) in self.shadow:
-                            window.addstr(
-                                line,
-                                2 * j,
-                                SHADOW_CELL,
-                                self.get_color(cur.shape),
-                            )
-                        if (i, j) in cur:
-                            window.addstr(
-                                line,
-                                2 * j,
-                                SOLID_CELL,
-                                self.get_color(cur.shape),
-                            )
+                if (i, j) in cur:
+                    window.addstr(
+                        line,
+                        2 * j,
+                        SOLID_CELL,
+                        self.get_color(
+                            TetriminoShape.CLEAR if i in cleared_lines else cur.shape
+                        ),
+                    )
 
         self.board_window.refresh()
 
@@ -629,7 +647,7 @@ class Tetris:
             window.addstr(2, 1, f"{self.time_remaining:>{width}}")
         else:
             window.addstr(1, 1, f"{'Time:':<{width}}")
-            window.addstr(2, 1, f"{self.game_time:>{width}}")
+            window.addstr(2, 1, f"{self.game_time_str:>{width}}")
         window.addstr(3, 1, f"{'Score:':<{width}}")
         window.addstr(4, 1, f"{str(self.score):>{width}}")
         window.addstr(5, 1, f"{'Lines:':<{width}}")
@@ -671,6 +689,7 @@ class Tetris:
             return
         self.frame_timer = 0
 
+        self.draw_border()
         self.draw_board()
         self.draw_preview()
         self.draw_hold()
@@ -743,6 +762,8 @@ class Tetris:
         # if rotate offset is 4th point, it's t-spin
         if self.rotate_offset == 4:
             return 1
+
+        slots = []
         if self.cur_tetrimino.direction == Direction.NORTH:
             slots = [(cx - 1, cy - 1), (cx - 1, cy + 1)]
         if self.cur_tetrimino.direction == Direction.EAST:
@@ -1035,13 +1056,15 @@ class Tetris:
         colorful = curses.COLORS > 16 and curses.can_change_color()
         if colorful:
             # the color 0~7 is the default terminal color, use 8 or higher
-            curses.init_color(TetriminoShape.I.value + 7, 0, 941, 941)  # cyan
-            curses.init_color(TetriminoShape.O.value + 7, 941, 941, 0)  # yellow
-            curses.init_color(TetriminoShape.T.value + 7, 627, 0, 941)  # purple
-            curses.init_color(TetriminoShape.L.value + 7, 941, 627, 0)  # orange
-            curses.init_color(TetriminoShape.J.value + 7, 0, 0, 941)  # blue
-            curses.init_color(TetriminoShape.S.value + 7, 0, 941, 0)  # green
-            curses.init_color(TetriminoShape.Z.value + 7, 941, 0, 0)  # red
+            # fmt: off
+            curses.init_color(TetriminoShape.I.value + 7, 0,   941, 941)  # cyan
+            curses.init_color(TetriminoShape.O.value + 7, 941, 941, 0)    # yellow
+            curses.init_color(TetriminoShape.T.value + 7, 627, 0,   941)  # purple
+            curses.init_color(TetriminoShape.L.value + 7, 941, 627, 0)    # orange
+            curses.init_color(TetriminoShape.J.value + 7, 0,   0,   941)  # blue
+            curses.init_color(TetriminoShape.S.value + 7, 0,   941, 0)    # green
+            curses.init_color(TetriminoShape.Z.value + 7, 941, 0,   0)    # red
+            # fmt: on
         for tetrimino in TetriminoShape.normal_tetriminos():
             curses.init_pair(
                 tetrimino.value,
@@ -1057,6 +1080,12 @@ class Tetris:
         :return: curses color pair for normal shapes, or A_REVERSE for GARBAGE
         :rtype: int
         """
+        if shape == TetriminoShape.CLEAR:
+            if (self.game_time // self.clear_anim_flash_interval) % 2:
+                return curses.color_pair(shape.value)
+            else:
+                return curses.A_REVERSE
+
         if shape != TetriminoShape.GARBAGE:
             return curses.color_pair(shape.value)
         return 0
@@ -1088,7 +1117,7 @@ class Tetris:
         return SettlementMessage(
             self.score,
             self.lines,
-            self.game_time,
+            self.game_time_str,
             self.single,
             self.double,
             self.triple,

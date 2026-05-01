@@ -4,8 +4,6 @@ from collections import defaultdict
 import curses
 
 from tetris.enums import Direction, TetriminoShape
-from tetris.utils import rotate_points
-
 
 WINDOW_ROWS = 22
 WINDOW_COLS = 44
@@ -27,6 +25,17 @@ HARD_DROP = [ord(" ")]
 EXIT = [ord("q"), ord("Q")]
 PAUSE = [ord("p"), ord("P")]
 
+# borders
+BD_V = "│"
+BD_H = "─"
+BD_TL = "╭"
+BD_TR = "╮"
+BD_BL = "╰"
+BD_BR = "╯"
+BD_VR = "├"
+BD_VL = "┤"
+BD_HB = "┬"
+BD_HT = "┴"
 
 SHAPE_TABLE = {
     TetriminoShape.I: [(0, 0), (0, 1), (0, 2), (0, 3)],
@@ -128,6 +137,8 @@ for shape in TetriminoShape.normal_tetriminos():
 
     cur_pos = SHAPE_TABLE[shape][::]
     for start, end, ccw in _cw + _ccw:
+        from tetris.utils import rotate_points
+
         rotated = rotate_points(cur_pos, ROTATE_AXIS[shape], ccw)
         diff = [(rx - x, ry - y) for (rx, ry), (x, y) in list(zip(rotated, cur_pos))]
         cur_pos = rotated
