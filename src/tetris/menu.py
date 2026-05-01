@@ -1,11 +1,10 @@
 """game menu, mode selection"""
 
 import curses
-from enum import Enum
 
-from tetris.constants import WINDOW_COLS, WINDOW_ROWS
+from tetris.constants import WINDOW_COLS, WINDOW_ROWS, BD_V, BD_VR, BD_VL
 from tetris.enums import Sections
-
+from tetris.utils import draw_win_border
 
 
 class Menu:
@@ -14,28 +13,24 @@ class Menu:
 
         self.title_window = curses.newwin(6, WINDOW_COLS)
         self.sections_window = curses.newwin(WINDOW_ROWS - 8, WINDOW_COLS, 6, 0)
-        self.version_window = curses.newwin(2, WINDOW_COLS, WINDOW_ROWS - 2, 0)
-
-        self.title_window.border(
-            0, 0, 0, ord(" "), 0, 0, curses.ACS_VLINE, curses.ACS_VLINE
-        )
-        self.sections_window.border(
-            0,
-            0,
-            0,
-            0,
-            curses.ACS_LTEE,
-            curses.ACS_RTEE,
-            curses.ACS_LTEE,
-            curses.ACS_RTEE,
-        )
-        self.version_window.border(
-            0, 0, ord(" "), 0, curses.ACS_VLINE, curses.ACS_VLINE
-        )
+        self.notice_window = curses.newwin(2, WINDOW_COLS, WINDOW_ROWS - 2, 0)
 
         self.sections = [section.name.replace("_", " ").strip() for section in Sections]
         self.cur_section = 0
         self.confirm = False
+
+    def draw_border(self) -> None:
+        title_win = self.title_window
+        sec_win = self.sections_window
+        notice_win = self.notice_window
+
+        draw_win_border(title_win, bs="", bl=BD_V, br=BD_V)
+        draw_win_border(sec_win, tl=BD_VR, tr=BD_VL, bl=BD_VR, br=BD_VL)
+        draw_win_border(notice_win, ts="", tl=BD_V, tr=BD_V)
+
+        title_win.refresh()
+        sec_win.refresh()
+        notice_win.refresh()
 
     def draw_title(self) -> None:
         """draw title"""
@@ -66,7 +61,7 @@ class Menu:
 
     def draw_notice(self) -> None:
         """draw version"""
-        window = self.version_window
+        window = self.notice_window
         _, width = window.getmaxyx()
 
         notice = "tab, ↑, ↓ to select, enter to confirm"
@@ -75,6 +70,7 @@ class Menu:
         window.refresh()
 
     def draw(self) -> None:
+        self.draw_border()
         self.draw_title()
         self.draw_sections()
         self.draw_notice()
@@ -94,6 +90,6 @@ class Menu:
             self.draw()
 
     def main(self) -> int:
-        self.stdscr.timeout(0)
+        self.stdscr.timeout(100)
         self.loop()
         return self.cur_section
