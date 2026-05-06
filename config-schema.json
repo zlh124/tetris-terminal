@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/zlh124/tetris-terminal/refs/heads/master/config-schema.json",
+  "title": "Tetris Terminal Configuration",
+  "description": "Configuration schema for tetris-terminal.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference."
+    },
+    "display": {
+      "type": "object",
+      "description": "Visual display settings.",
+      "properties": {
+        "empty_cell": {
+          "type": "string",
+          "default": "  "
+        },
+        "solid_cell": {
+          "type": "string",
+          "default": "██"
+        },
+        "shadow_cell": {
+          "type": "string",
+          "default": "░░"
+        },
+        "bd_v": {
+          "type": "string",
+          "default": "│"
+        },
+        "bd_h": {
+          "type": "string",
+          "default": "─"
+        },
+        "bd_tl": {
+          "type": "string",
+          "default": "╭"
+        },
+        "bd_tr": {
+          "type": "string",
+          "default": "╮"
+        },
+        "bd_bl": {
+          "type": "string",
+          "default": "╰"
+        },
+        "bd_br": {
+          "type": "string",
+          "default": "╯"
+        },
+        "bd_vr": {
+          "type": "string",
+          "default": "├"
+        },
+        "bd_vl": {
+          "type": "string",
+          "default": "┤"
+        },
+        "bd_hb": {
+          "type": "string",
+          "default": "┬"
+        },
+        "bd_ht": {
+          "type": "string",
+          "default": "┴"
+        }
+      },
+      "additionalProperties": false
+    },
+    "timing": {
+      "type": "object",
+      "description": "Frame rate and animation timing.",
+      "properties": {
+        "fps": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1
+        },
+        "clear_anim_flash_interval": {
+          "type": "number",
+          "default": 0.05,
+          "exclusiveMinimum": 0
+        },
+        "clear_anim_duration": {
+          "type": "number",
+          "default": 0.3,
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "game_rules": {
+      "type": "object",
+      "description": "Gameplay rule parameters.",
+      "properties": {
+        "max_lock_down_move_count": {
+          "type": "integer",
+          "default": 15,
+          "minimum": 0
+        },
+        "time_attack_duration": {
+          "type": "integer",
+          "default": 120,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "logging": {
+      "type": "object",
+      "description": "Logging settings.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "level": {
+          "type": "string",
+          "default": "DEBUG",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ]
+        },
+        "log_dir": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

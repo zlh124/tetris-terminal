@@ -27,7 +27,7 @@ from tetris.constants import (
 )
 from tetris.enums import Direction, GameMode, TetriminoShape
 from tetris.settlement import SettlementMessage
-from tetris.utils import draw_win_border
+from tetris.utils import draw_win_border, timed
 
 
 class Tetrimino:
@@ -90,7 +90,9 @@ class Tetris:
             elapsed = self.elapsed + (datetime.now() - self.running_since)
         else:
             elapsed = self.elapsed
-        remaining = self.config.game_rules.time_attack_duration - elapsed.total_seconds()
+        remaining = (
+            self.config.game_rules.time_attack_duration - elapsed.total_seconds()
+        )
         if remaining <= 0:
             return "00:00:00"
         minutes = int(remaining // 60)
@@ -98,7 +100,9 @@ class Tetris:
         milliseconds = int((remaining * 100) % 100)
         return f"{minutes:02d}:{seconds:02d}:{milliseconds:02d}"
 
-    def __init__(self, stdscr: curses.window, game_mode: GameMode, config: Config) -> None:
+    def __init__(
+        self, stdscr: curses.window, game_mode: GameMode, config: Config
+    ) -> None:
         self.stdscr = stdscr
         self.game_mode = game_mode
         self.config = config
@@ -157,7 +161,8 @@ class Tetris:
 
         # Board, bag, shadow, settlement message
         self.board = [
-            [TetriminoShape.EMPTY] * self.config.game_rules.board_width for _ in range(self.config.game_rules.board_height)
+            [TetriminoShape.EMPTY] * self.config.game_rules.board_width
+            for _ in range(self.config.game_rules.board_height)
         ]
         self.shadow: list[tuple[int, int]] = []
         self.bag: deque[Tetrimino] = deque(maxlen=14)
@@ -213,7 +218,9 @@ class Tetris:
 
                 for i in range(row - 1, -1, -1):
                     self.board[i + 1] = self.board[i]
-                self.board[0] = [TetriminoShape.EMPTY] * self.config.game_rules.board_width
+                self.board[0] = [
+                    TetriminoShape.EMPTY
+                ] * self.config.game_rules.board_width
         return res
 
     def check_can_move_down(self) -> bool:
@@ -238,7 +245,10 @@ class Tetris:
         :return: True if the current tetrimino can move left, False otherwise
         :rtype: bool
         """
-        if self.lock_down_move_counter >= self.config.game_rules.max_lock_down_move_count:
+        if (
+            self.lock_down_move_counter
+            >= self.config.game_rules.max_lock_down_move_count
+        ):
             return False
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
@@ -253,7 +263,10 @@ class Tetris:
         :return: True if the current tetrimino can move right, False otherwise
         :rtype: bool
         """
-        if self.lock_down_move_counter >= self.config.game_rules.max_lock_down_move_count:
+        if (
+            self.lock_down_move_counter
+            >= self.config.game_rules.max_lock_down_move_count
+        ):
             return False
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
@@ -331,7 +344,8 @@ class Tetris:
         """
         x, y = point
         return (
-            0 <= x < self.config.game_rules.board_height and 0 <= y < self.config.game_rules.board_width
+            0 <= x < self.config.game_rules.board_height
+            and 0 <= y < self.config.game_rules.board_width
         ) and self.board[x][y] == TetriminoShape.EMPTY
 
     def check_points_empty(self, points: list[tuple[int, int]]) -> bool:
@@ -350,7 +364,8 @@ class Tetris:
         :param next_direction: the next direction of the tetrimino
         """
         if (
-            self.lock_down_move_counter >= self.config.game_rules.max_lock_down_move_count
+            self.lock_down_move_counter
+            >= self.config.game_rules.max_lock_down_move_count
         ):  # can only rotate 15 times when reach bottom
             return
         if self.cur_tetrimino is None:
@@ -498,7 +513,9 @@ class Tetris:
 
         d = self.config.display
         draw_win_border(hold_win, d, tr=d.bd_hb, bl=d.bd_vr, br=d.bd_vl)
-        draw_win_border(info_win, d, ts="", tl=d.bd_v, tr=d.bd_v, bl=d.bd_vr, br=d.bd_vl)
+        draw_win_border(
+            info_win, d, ts="", tl=d.bd_v, tr=d.bd_v, bl=d.bd_vr, br=d.bd_vl
+        )
         draw_win_border(notice_win, d, ts="", tl=d.bd_v, tr=d.bd_v, br=d.bd_ht)
         draw_win_border(preview_win, d, tl=d.bd_hb, bl=d.bd_ht)
         draw_win_border(board_win, d, ls="", tl=d.bd_h, tr="", bl=d.bd_h, br=d.bd_ht)
@@ -531,7 +548,11 @@ class Tetris:
                 window.addstr(
                     line,
                     2 * j,
-                    self.config.display.solid_cell if cell != TetriminoShape.EMPTY else self.config.display.empty_cell,
+                    (
+                        self.config.display.solid_cell
+                        if cell != TetriminoShape.EMPTY
+                        else self.config.display.empty_cell
+                    ),
                     self.get_color(cell),
                 )
                 if (i, j) in self.shadow:
@@ -793,9 +814,13 @@ class Tetris:
         self.build_notice(self.pending_t_spin, cleared_lines, was_b2b)
         self.pending_t_spin = 0
 
+    @timed
     def handle_line_clear_anim(self) -> None:
         """end the animation and process line clear once the duration has elapsed"""
-        if time.time() - self.clear_anim_start >= self.config.timing.clear_anim_duration:
+        if (
+            time.time() - self.clear_anim_start
+            >= self.config.timing.clear_anim_duration
+        ):
             self.animating = False
             self.finish_lock_down()
 
@@ -935,6 +960,7 @@ class Tetris:
                 notice += " B2B!"
             self.set_notice(notice)
 
+    @timed
     def handle_lock_down(self, dt: float) -> None:
         """handle lock down"""
         if self.check_can_move_down():
@@ -945,6 +971,7 @@ class Tetris:
         if self.lock_down_timer >= 0.5:
             self.lock_down()
 
+    @timed
     def handle_shadow(self):
         """handle shadow tetrimino"""
         if self.cur_tetrimino is None:
@@ -1074,7 +1101,7 @@ class Tetris:
         self.init_bag()
         self.generate_new_tetrimino()
         self.init_color()
-        self.stdscr.timeout(0)
+        self.stdscr.timeout(1)
 
     def main(self) -> SettlementMessage:
         """initialize and run the game, returning the settlement message on exit

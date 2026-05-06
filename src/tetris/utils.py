@@ -1,9 +1,28 @@
 """utils"""
 
 import curses
+import time
+from functools import wraps
 from importlib.metadata import PackageNotFoundError, version
+from typing import Callable
 
+from tetris.logger import logger
 from tetris.config import DisplayConfig
+
+
+def timed(func: Callable) -> Callable:
+    """Decorator that logs function execution time in milliseconds."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            elapsed = (time.perf_counter() - start) * 1000
+            logger.debug("%s.%s took %.3f ms", func.__module__, func.__qualname__, elapsed)
+
+    return wrapper
 
 
 def rotate_points(

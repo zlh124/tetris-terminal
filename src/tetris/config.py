@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from dataclasses import dataclass, field, fields
+from dataclasses import MISSING, dataclass, field, fields
 from pathlib import Path
 
 
@@ -62,6 +62,29 @@ class GameRulesConfig:
     _internal = frozenset({"board_width", "board_height"})
 
 
+def _default_log_dir() -> str:
+    """Return platform-appropriate log directory default."""
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Caches"
+    else:
+        xdg = os.environ.get("XDG_CACHE_HOME", "")
+        base = Path(xdg) if xdg else Path.home() / ".cache"
+    return str(base / "tetris-terminal")
+
+
+@dataclass
+class LoggingConfig:
+    """logging settings"""
+
+    enabled: bool = False
+    level: str = "DEBUG"
+    log_dir: str = field(default_factory=_default_log_dir)
+
+    _internal = frozenset()
+
+
 @dataclass
 class Config:
     """root configuration, loaded from JSON with defaults for missing keys"""
@@ -69,6 +92,7 @@ class Config:
     display: DisplayConfig = field(default_factory=DisplayConfig)
     timing: TimingConfig = field(default_factory=TimingConfig)
     game_rules: GameRulesConfig = field(default_factory=GameRulesConfig)
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
 
     @staticmethod
     def config_path() -> Path:
@@ -116,9 +140,11 @@ class Config:
             raise FileExistsError(f"config file already exists: {path}")
 
         data = {
+            "$schema": "https://raw.githubusercontent.com/zlh124/tetris-terminal/refs/heads/master/config-schema.json",
             "display": _dataclass_defaults(DisplayConfig),
             "timing": _dataclass_defaults(TimingConfig),
             "game_rules": _dataclass_defaults(GameRulesConfig),
+            "logging": _dataclass_defaults(LoggingConfig),
         }
 
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -133,7 +159,10 @@ class Config:
         display = _merge_dataclass(DisplayConfig, data.get("display", {}))
         timing = _merge_dataclass(TimingConfig, data.get("timing", {}))
         game_rules = _merge_dataclass(GameRulesConfig, data.get("game_rules", {}))
-        return cls(display=display, timing=timing, game_rules=game_rules)
+        logging_cfg = _merge_dataclass(LoggingConfig, data.get("logging", {}))
+        return cls(
+            display=display, timing=timing, game_rules=game_rules, logging=logging_cfg
+        )
 
 
 def _merge_dataclass(cls_type, data: dict):
@@ -149,8 +178,10 @@ def _merge_dataclass(cls_type, data: dict):
 def _dataclass_defaults(cls_type) -> dict:
     """Return a dict of configurable (non-internal) defaults for a dataclass."""
     internal = getattr(cls_type, "_internal", frozenset())
-    return {
-        f.name: f.default
-        for f in fields(cls_type)
-        if f.name not in internal and not f.name.startswith("_")
-    }
+    result = {}
+    for f in fields(cls_type):
+        if f.name in internal or f.name.startswith("_"):
+            continue
+        value = f.default_factory() if f.default is MISSING else f.default  # type: ignore
+        result[f.name] = value
+    return result

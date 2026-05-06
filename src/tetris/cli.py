@@ -5,6 +5,7 @@ import curses
 import sys
 
 from tetris.config import Config
+from tetris.logger import logger, setup_from_config
 from tetris.menu import Menu, Sections
 from tetris.settlement import Settlement
 from tetris.tetris import Tetris, GameMode
@@ -14,6 +15,7 @@ from tetris.utils import get_version
 def make_wrapper(disable_config: bool = False):
     def wrapper(stdscr: curses.window) -> int:
         config = Config() if disable_config else Config.load()
+        setup_from_config(config.logging)
 
         curses.update_lines_cols()
         if curses.LINES < config.display.window_rows or curses.COLS < config.display.window_cols:
