@@ -9,14 +9,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Generator
 
+from tetris.config import Config
 from tetris.constants import (
-    BD_H,
-    BD_HB,
-    BD_HT,
-    BD_V,
-    BD_VL,
-    BD_VR,
-    EMPTY_CELL,
     EXIT,
     GENERATE_POSITION,
     HARD_DROP,
@@ -27,11 +21,9 @@ from tetris.constants import (
     ROTATE_CCW,
     ROTATE_CW,
     ROTATE_TABLE,
-    SHADOW_CELL,
     SHAPE_TABLE,
     SHOW_OFFSET,
     SOFT_DROP,
-    SOLID_CELL,
 )
 from tetris.enums import Direction, GameMode, TetriminoShape
 from tetris.settlement import SettlementMessage
@@ -66,21 +58,6 @@ class Tetrimino:
 
 
 class Tetris:
-    # Game configuration
-    fps = 30  # target 30 FPS
-    frame_interval = 1.0 / fps  # seconds per frame (~0.0333s)
-    time_attack_duration = 120  # 2 minutes for time attack mode
-
-    # Board dimensions
-    BOARD_WIDTH = 10
-    BOARD_HEIGHT = 40
-
-    MAX_LOCK_DOWN_MOVE_COUNT = 15
-
-    # Line-clear animation
-    clear_anim_flash_interval = 0.05
-    clear_anim_duration = 0.3
-
     class Movement(Enum):
         MOVE = 0
         ROTATE = 1
@@ -113,7 +90,7 @@ class Tetris:
             elapsed = self.elapsed + (datetime.now() - self.running_since)
         else:
             elapsed = self.elapsed
-        remaining = self.time_attack_duration - elapsed.total_seconds()
+        remaining = self.config.game_rules.time_attack_duration - elapsed.total_seconds()
         if remaining <= 0:
             return "00:00:00"
         minutes = int(remaining // 60)
@@ -121,9 +98,10 @@ class Tetris:
         milliseconds = int((remaining * 100) % 100)
         return f"{minutes:02d}:{seconds:02d}:{milliseconds:02d}"
 
-    def __init__(self, stdscr: curses.window, game_mode: GameMode) -> None:
+    def __init__(self, stdscr: curses.window, game_mode: GameMode, config: Config) -> None:
         self.stdscr = stdscr
         self.game_mode = game_mode
+        self.config = config
 
         # Score / progress
         self.score = 0
@@ -179,7 +157,7 @@ class Tetris:
 
         # Board, bag, shadow, settlement message
         self.board = [
-            [TetriminoShape.EMPTY] * self.BOARD_WIDTH for _ in range(self.BOARD_HEIGHT)
+            [TetriminoShape.EMPTY] * self.config.game_rules.board_width for _ in range(self.config.game_rules.board_height)
         ]
         self.shadow: list[tuple[int, int]] = []
         self.bag: deque[Tetrimino] = deque(maxlen=14)
@@ -229,13 +207,13 @@ class Tetris:
         :rtype: int
         """
         res = 0
-        for row in range(self.BOARD_HEIGHT - 1, -1, -1):
+        for row in range(self.config.game_rules.board_height - 1, -1, -1):
             while all(v != TetriminoShape.EMPTY for v in self.board[row]):
                 res += 1
 
                 for i in range(row - 1, -1, -1):
                     self.board[i + 1] = self.board[i]
-                self.board[0] = [TetriminoShape.EMPTY] * self.BOARD_WIDTH
+                self.board[0] = [TetriminoShape.EMPTY] * self.config.game_rules.board_width
         return res
 
     def check_can_move_down(self) -> bool:
@@ -248,7 +226,7 @@ class Tetris:
             raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
             if (
-                x + 1 >= self.BOARD_HEIGHT
+                x + 1 >= self.config.game_rules.board_height
                 or self.board[x + 1][y] != TetriminoShape.EMPTY
             ):
                 return False
@@ -260,7 +238,7 @@ class Tetris:
         :return: True if the current tetrimino can move left, False otherwise
         :rtype: bool
         """
-        if self.lock_down_move_counter >= self.MAX_LOCK_DOWN_MOVE_COUNT:
+        if self.lock_down_move_counter >= self.config.game_rules.max_lock_down_move_count:
             return False
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
@@ -275,13 +253,13 @@ class Tetris:
         :return: True if the current tetrimino can move right, False otherwise
         :rtype: bool
         """
-        if self.lock_down_move_counter >= self.MAX_LOCK_DOWN_MOVE_COUNT:
+        if self.lock_down_move_counter >= self.config.game_rules.max_lock_down_move_count:
             return False
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
         for x, y in self.cur_tetrimino:
             if (
-                y + 1 >= self.BOARD_WIDTH
+                y + 1 >= self.config.game_rules.board_width
                 or self.board[x][y + 1] != TetriminoShape.EMPTY
             ):
                 return False
@@ -353,7 +331,7 @@ class Tetris:
         """
         x, y = point
         return (
-            0 <= x < self.BOARD_HEIGHT and 0 <= y < self.BOARD_WIDTH
+            0 <= x < self.config.game_rules.board_height and 0 <= y < self.config.game_rules.board_width
         ) and self.board[x][y] == TetriminoShape.EMPTY
 
     def check_points_empty(self, points: list[tuple[int, int]]) -> bool:
@@ -372,7 +350,7 @@ class Tetris:
         :param next_direction: the next direction of the tetrimino
         """
         if (
-            self.lock_down_move_counter >= self.MAX_LOCK_DOWN_MOVE_COUNT
+            self.lock_down_move_counter >= self.config.game_rules.max_lock_down_move_count
         ):  # can only rotate 15 times when reach bottom
             return
         if self.cur_tetrimino is None:
@@ -518,11 +496,12 @@ class Tetris:
         board_win = self.board_window
         preview_win = self.preview_window
 
-        draw_win_border(hold_win, tr=BD_HB, bl=BD_VR, br=BD_VL)
-        draw_win_border(info_win, ts="", tl=BD_V, tr=BD_V, bl=BD_VR, br=BD_VL)
-        draw_win_border(notice_win, ts="", tl=BD_V, tr=BD_V, br=BD_HT)
-        draw_win_border(preview_win, tl=BD_HB, bl=BD_HT)
-        draw_win_border(board_win, ls="", tl=BD_H, tr="", bl=BD_H, br=BD_HT)
+        d = self.config.display
+        draw_win_border(hold_win, d, tr=d.bd_hb, bl=d.bd_vr, br=d.bd_vl)
+        draw_win_border(info_win, d, ts="", tl=d.bd_v, tr=d.bd_v, bl=d.bd_vr, br=d.bd_vl)
+        draw_win_border(notice_win, d, ts="", tl=d.bd_v, tr=d.bd_v, br=d.bd_ht)
+        draw_win_border(preview_win, d, tl=d.bd_hb, bl=d.bd_ht)
+        draw_win_border(board_win, d, ls="", tl=d.bd_h, tr="", bl=d.bd_h, br=d.bd_ht)
 
         hold_win.refresh()
         info_win.refresh()
@@ -543,23 +522,23 @@ class Tetris:
         cur = self.cur_tetrimino
         cleared_lines = set()
 
-        for i in range(20, self.BOARD_HEIGHT):
+        for i in range(20, self.config.game_rules.board_height):
             line = i - 19
-            for j in range(self.BOARD_WIDTH):
+            for j in range(self.config.game_rules.board_width):
                 cell = self.board[i][j]
                 if cell == TetriminoShape.CLEAR:
                     cleared_lines.add(i)
                 window.addstr(
                     line,
                     2 * j,
-                    SOLID_CELL if cell != TetriminoShape.EMPTY else EMPTY_CELL,
+                    self.config.display.solid_cell if cell != TetriminoShape.EMPTY else self.config.display.empty_cell,
                     self.get_color(cell),
                 )
                 if (i, j) in self.shadow:
                     window.addstr(
                         line,
                         2 * j,
-                        SHADOW_CELL,
+                        self.config.display.shadow_cell,
                         self.get_color(
                             TetriminoShape.CLEAR if i in cleared_lines else cur.shape
                         ),
@@ -568,7 +547,7 @@ class Tetris:
                     window.addstr(
                         line,
                         2 * j,
-                        SOLID_CELL,
+                        self.config.display.solid_cell,
                         self.get_color(
                             TetriminoShape.CLEAR if i in cleared_lines else cur.shape
                         ),
@@ -599,7 +578,7 @@ class Tetris:
                 window.addstr(
                     s_row + x + dx,
                     s_col + (y + dy) * 2,
-                    SOLID_CELL,
+                    self.config.display.solid_cell,
                     self.get_color(shape),
                 )
 
@@ -625,7 +604,7 @@ class Tetris:
                 window.addstr(
                     s_row + x + dx,
                     s_col + (y + dy) * 2,
-                    SOLID_CELL,
+                    self.config.display.solid_cell,
                     self.get_color(shape),
                 )
 
@@ -685,7 +664,7 @@ class Tetris:
     def draw(self, dt: float) -> None:
         """draw the game"""
         self.frame_timer += dt
-        if self.frame_timer < 1 / self.fps:
+        if self.frame_timer < 1 / self.config.timing.fps:
             return
         self.frame_timer = 0
 
@@ -790,9 +769,9 @@ class Tetris:
 
         # mark full rows with CLEAR for animation
         has_clear = False
-        for row in range(self.BOARD_HEIGHT - 1, -1, -1):
+        for row in range(self.config.game_rules.board_height - 1, -1, -1):
             if all(v != TetriminoShape.EMPTY for v in self.board[row]):
-                for col in range(self.BOARD_WIDTH):
+                for col in range(self.config.game_rules.board_width):
                     self.board[row][col] = TetriminoShape.CLEAR
                 has_clear = True
 
@@ -816,7 +795,7 @@ class Tetris:
 
     def handle_line_clear_anim(self) -> None:
         """end the animation and process line clear once the duration has elapsed"""
-        if time.time() - self.clear_anim_start >= self.clear_anim_duration:
+        if time.time() - self.clear_anim_start >= self.config.timing.clear_anim_duration:
             self.animating = False
             self.finish_lock_down()
 
@@ -900,7 +879,7 @@ class Tetris:
             self.game_mode == GameMode.TIME_ATTACK
             and self.running_since is not None
             and (self.elapsed + (datetime.now() - self.running_since)).total_seconds()
-            >= self.time_attack_duration
+            >= self.config.game_rules.time_attack_duration
         ):
             self.game_over = True
 
@@ -1005,9 +984,9 @@ class Tetris:
         self.board.pop(0)
 
         # randomly set some empty cells
-        new_line = [TetriminoShape.GARBAGE] * self.BOARD_WIDTH
+        new_line = [TetriminoShape.GARBAGE] * self.config.game_rules.board_width
 
-        indexes = list(range(self.BOARD_WIDTH))
+        indexes = list(range(self.config.game_rules.board_width))
         random.shuffle(indexes)
 
         for i in range(random.randint(1, 5)):
@@ -1041,13 +1020,13 @@ class Tetris:
                         and (
                             self.elapsed + (datetime.now() - self.running_since)
                         ).total_seconds()
-                        >= self.time_attack_duration
+                        >= self.config.game_rules.time_attack_duration
                     ):
                         self.game_over = True
 
             # Sleep remaining time to maintain target frame rate
             elapsed = time.time() - current_time
-            sleep_time = self.frame_interval - elapsed
+            sleep_time = (1.0 / self.config.timing.fps) - elapsed
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
@@ -1081,7 +1060,7 @@ class Tetris:
         :rtype: int
         """
         if shape == TetriminoShape.CLEAR:
-            if (self.game_time // self.clear_anim_flash_interval) % 2:
+            if (self.game_time // self.config.timing.clear_anim_flash_interval) % 2:
                 return curses.color_pair(shape.value)
             else:
                 return curses.A_REVERSE
