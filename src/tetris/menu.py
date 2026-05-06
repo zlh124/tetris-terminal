@@ -2,18 +2,20 @@
 
 import curses
 
-from tetris.constants import WINDOW_COLS, WINDOW_ROWS, BD_V, BD_VR, BD_VL
+from tetris.config import Config
 from tetris.enums import Sections
 from tetris.utils import draw_win_border
 
 
 class Menu:
-    def __init__(self, stdscr: curses.window) -> None:
+    def __init__(self, stdscr: curses.window, config: Config) -> None:
         self.stdscr = stdscr
+        self.config = config
 
-        self.title_window = curses.newwin(6, WINDOW_COLS)
-        self.sections_window = curses.newwin(WINDOW_ROWS - 8, WINDOW_COLS, 6, 0)
-        self.notice_window = curses.newwin(2, WINDOW_COLS, WINDOW_ROWS - 2, 0)
+        d = config.display
+        self.title_window = curses.newwin(6, d.window_cols)
+        self.sections_window = curses.newwin(d.window_rows - 8, d.window_cols, 6, 0)
+        self.notice_window = curses.newwin(2, d.window_cols, d.window_rows - 2, 0)
 
         self.sections = [section.name.replace("_", " ").strip() for section in Sections]
         self.cur_section = 0
@@ -24,9 +26,10 @@ class Menu:
         sec_win = self.sections_window
         notice_win = self.notice_window
 
-        draw_win_border(title_win, bs="", bl=BD_V, br=BD_V)
-        draw_win_border(sec_win, tl=BD_VR, tr=BD_VL, bl=BD_VR, br=BD_VL)
-        draw_win_border(notice_win, ts="", tl=BD_V, tr=BD_V)
+        d = self.config.display
+        draw_win_border(title_win, d, bs="", bl=d.bd_v, br=d.bd_v)
+        draw_win_border(sec_win, d, tl=d.bd_vr, tr=d.bd_vl, bl=d.bd_vr, br=d.bd_vl)
+        draw_win_border(notice_win, d, ts="", tl=d.bd_v, tr=d.bd_v)
 
         title_win.refresh()
         sec_win.refresh()

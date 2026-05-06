@@ -5,14 +5,7 @@ import curses
 
 from tetris.enums import Direction, TetriminoShape
 
-WINDOW_ROWS = 22
-WINDOW_COLS = 44
-
 EMPTY = 0
-
-EMPTY_CELL = "  "
-SOLID_CELL = "██"
-SHADOW_CELL = "░░"
 
 # keymap
 MOVE_LEFT = [curses.KEY_LEFT, ord("A"), ord("a")]
@@ -24,18 +17,6 @@ HOLD = [ord("c"), ord("C")]
 HARD_DROP = [ord(" ")]
 EXIT = [ord("q"), ord("Q")]
 PAUSE = [ord("p"), ord("P")]
-
-# borders
-BD_V = "│"
-BD_H = "─"
-BD_TL = "╭"
-BD_TR = "╮"
-BD_BL = "╰"
-BD_BR = "╯"
-BD_VR = "├"
-BD_VL = "┤"
-BD_HB = "┬"
-BD_HT = "┴"
 
 SHAPE_TABLE = {
     TetriminoShape.I: [(0, 0), (0, 1), (0, 2), (0, 3)],

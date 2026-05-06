@@ -1,9 +1,28 @@
 """utils"""
 
 import curses
+import time
+from functools import wraps
 from importlib.metadata import PackageNotFoundError, version
+from typing import Callable
 
-from tetris.constants import BD_BL, BD_BR, BD_H, BD_TL, BD_TR, BD_V
+from tetris.logger import logger
+from tetris.config import DisplayConfig
+
+
+def timed(func: Callable) -> Callable:
+    """Decorator that logs function execution time in milliseconds."""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            elapsed = (time.perf_counter() - start) * 1000
+            logger.debug("%s.%s took %.3f ms", func.__module__, func.__qualname__, elapsed)
+
+    return wrapper
 
 
 def rotate_points(
@@ -42,14 +61,7 @@ def get_version() -> str:
 
 
 def safe_addstr(win: curses.window, y: int, x: int, s: str) -> None:
-    """addstr but ignore curses.error
-
-    :param win: curses.window
-    :param y: y coordinate
-    :param x: x coordinate
-    :param s: string to add
-    :rtype: None
-    """
+    """addstr but ignore curses.error"""
     try:
         win.addstr(y, x, s)
     except curses.error:
@@ -58,36 +70,35 @@ def safe_addstr(win: curses.window, y: int, x: int, s: str) -> None:
 
 def draw_win_border(
     win: curses.window,
-    ls: str = BD_V,
-    rs: str = BD_V,
-    ts: str = BD_H,
-    bs: str = BD_H,
-    tl: str = BD_TL,
-    tr: str = BD_TR,
-    bl: str = BD_BL,
-    br: str = BD_BR,
+    display: DisplayConfig,
+    ls: str | None = None,
+    rs: str | None = None,
+    ts: str | None = None,
+    bs: str | None = None,
+    tl: str | None = None,
+    tr: str | None = None,
+    bl: str | None = None,
+    br: str | None = None,
 ) -> None:
-    """draw window border
+    """draw window border using display config, with optional per-call overrides"""
+    _ls = ls if ls is not None else display.bd_v
+    _rs = rs if rs is not None else display.bd_v
+    _ts = ts if ts is not None else display.bd_h
+    _bs = bs if bs is not None else display.bd_h
+    _tl = tl if tl is not None else display.bd_tl
+    _tr = tr if tr is not None else display.bd_tr
+    _bl = bl if bl is not None else display.bd_bl
+    _br = br if br is not None else display.bd_br
 
-    :param win: curses.window
-    :param ls: left side character
-    :param rs: right side character
-    :param ts: top side character
-    :param bs: bottom side character
-    :param tl: top left character
-    :param tr: top right character
-    :param bl: bottom left character
-    :param br: bottom right character
-    """
     height, width = win.getmaxyx()
-    safe_addstr(win, 0, 0, tl)
-    safe_addstr(win, 0, width - 1, tr)
-    safe_addstr(win, height - 1, 0, bl)
-    safe_addstr(win, height - 1, width - 1, br)
+    safe_addstr(win, 0, 0, _tl)
+    safe_addstr(win, 0, width - 1, _tr)
+    safe_addstr(win, height - 1, 0, _bl)
+    safe_addstr(win, height - 1, width - 1, _br)
 
-    safe_addstr(win, 0, 1, ts * (width - 2))
-    safe_addstr(win, height - 1, 1, bs * (width - 2))
+    safe_addstr(win, 0, 1, _ts * (width - 2))
+    safe_addstr(win, height - 1, 1, _bs * (width - 2))
 
     for i in range(1, height - 1):
-        safe_addstr(win, i, 0, ls)
-        safe_addstr(win, i, width - 1, rs)
+        safe_addstr(win, i, 0, _ls)
+        safe_addstr(win, i, width - 1, _rs)
