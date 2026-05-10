@@ -27,7 +27,7 @@ from tetris.constants import (
 )
 from tetris.enums import Direction, GameMode, TetriminoShape
 from tetris.settlement import SettlementMessage
-from tetris.utils import draw_win_border, timed
+from tetris.utils import draw_win_border
 
 
 class Tetrimino:
@@ -520,12 +520,6 @@ class Tetris:
         draw_win_border(preview_win, d, tl=d.bd_hb, bl=d.bd_ht)
         draw_win_border(board_win, d, ls="", tl=d.bd_h, tr="", bl=d.bd_h, br=d.bd_ht)
 
-        hold_win.refresh()
-        info_win.refresh()
-        notice_win.refresh()
-        board_win.refresh()
-        preview_win.refresh()
-
     def draw_board(self) -> None:
         """draw board"""
         window = self.board_window
@@ -574,7 +568,7 @@ class Tetris:
                         ),
                     )
 
-        self.board_window.refresh()
+        self.board_window.noutrefresh()
 
     def draw_preview(self) -> None:
         """draw preview"""
@@ -603,7 +597,7 @@ class Tetris:
                     self.get_color(shape),
                 )
 
-        window.refresh()
+        window.noutrefresh()
 
     def draw_hold(self) -> None:
         """draw hold"""
@@ -629,7 +623,7 @@ class Tetris:
                     self.get_color(shape),
                 )
 
-        window.refresh()
+        window.noutrefresh()
 
     def draw_info(self) -> None:
         """draw info"""
@@ -655,7 +649,7 @@ class Tetris:
         window.addstr(7, 1, f"{'Level:':<{width}}")
         window.addstr(8, 1, f"{str(self.level):>{width}}")
 
-        window.refresh()
+        window.noutrefresh()
 
     def draw_notice(self) -> None:
         """draw info"""
@@ -680,7 +674,7 @@ class Tetris:
             else:
                 window.addstr(height // 2, 1, f"{notice:^{width}}")
 
-        window.refresh()
+        window.noutrefresh()
 
     def draw(self, dt: float) -> None:
         """draw the game"""
@@ -695,6 +689,8 @@ class Tetris:
         self.draw_hold()
         self.draw_info()
         self.draw_notice()
+
+        curses.doupdate()
 
     def handle_input(self) -> None:
         """handle the input
@@ -814,7 +810,6 @@ class Tetris:
         self.build_notice(self.pending_t_spin, cleared_lines, was_b2b)
         self.pending_t_spin = 0
 
-    @timed
     def handle_line_clear_anim(self) -> None:
         """end the animation and process line clear once the duration has elapsed"""
         if (
@@ -960,7 +955,6 @@ class Tetris:
                 notice += " B2B!"
             self.set_notice(notice)
 
-    @timed
     def handle_lock_down(self, dt: float) -> None:
         """handle lock down"""
         if self.check_can_move_down():
@@ -971,7 +965,6 @@ class Tetris:
         if self.lock_down_timer >= 0.5:
             self.lock_down()
 
-    @timed
     def handle_shadow(self):
         """handle shadow tetrimino"""
         if self.cur_tetrimino is None:
@@ -1101,7 +1094,7 @@ class Tetris:
         self.init_bag()
         self.generate_new_tetrimino()
         self.init_color()
-        self.stdscr.timeout(1)
+        self.stdscr.timeout(0)
 
     def main(self) -> SettlementMessage:
         """initialize and run the game, returning the settlement message on exit
