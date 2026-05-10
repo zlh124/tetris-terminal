@@ -131,7 +131,7 @@ class Tetris:
         self.game_over = False
         self.paused = False
         self.animating = False
-        self.clear_anim_start: float = 0
+        self.clear_anim_played: float = 0
         self.pending_t_spin: int = 0
 
         # Piece state
@@ -798,7 +798,6 @@ class Tetris:
 
         if has_clear:
             self.animating = True
-            self.clear_anim_start = time.time()
         else:
             self.finish_lock_down()
 
@@ -810,14 +809,13 @@ class Tetris:
         self.build_notice(self.pending_t_spin, cleared_lines, was_b2b)
         self.pending_t_spin = 0
 
-    def handle_line_clear_anim(self) -> None:
+    def handle_line_clear_anim(self, delta: float) -> None:
         """end the animation and process line clear once the duration has elapsed"""
-        if (
-            time.time() - self.clear_anim_start
-            >= self.config.timing.clear_anim_duration
-        ):
+        if self.clear_anim_played >= self.config.timing.clear_anim_duration:
+            self.clear_anim_played = 0
             self.animating = False
             self.finish_lock_down()
+        self.clear_anim_played += delta
 
     def calculate_score(self, is_t_spin: int, cleared_lines: int) -> bool:
         """calculate and apply score, lines, level, and settlement stats for a lock-down event.
@@ -1033,16 +1031,15 @@ class Tetris:
             self.handle_input()
 
             if not self.paused:
-                if self.animating:
-                    self.handle_line_clear_anim()
-                else:
-                    accumulator += frame_time
-
-                    while accumulator >= FIXED_DT:
+                accumulator += frame_time
+                while accumulator >= FIXED_DT:
+                    if self.animating:
+                        self.handle_line_clear_anim(FIXED_DT)
+                    else:
                         self.handle_digging_mode(FIXED_DT)
                         self.normal_fall(FIXED_DT)
                         self.handle_lock_down(FIXED_DT)
-                        accumulator -= FIXED_DT
+                    accumulator -= FIXED_DT
 
                     self.handle_shadow()
 
