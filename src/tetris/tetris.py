@@ -1015,23 +1015,35 @@ class Tetris:
         self.board.append(new_line)
 
     def game_loop(self) -> None:
-        """main game loop"""
-        last_time = time.time()
+        """main game loop with fixed timestep accumulator"""
+        FIXED_DT = 1.0 / self.config.timing.fps
+        MAX_FRAME_TIME = 0.25
+
+        accumulator = 0.0
+        last_time = time.perf_counter()
+
         while not self.game_over:
-            current_time = time.time()
-            dt = current_time - last_time
+            current_time = time.perf_counter()
+            frame_time = current_time - last_time
             last_time = current_time
 
+            if frame_time > MAX_FRAME_TIME:
+                frame_time = MAX_FRAME_TIME
+
             self.handle_input()
-            self.draw(dt)
 
             if not self.paused:
                 if self.animating:
                     self.handle_line_clear_anim()
                 else:
-                    self.handle_digging_mode(dt)
-                    self.normal_fall(dt)
-                    self.handle_lock_down(dt)
+                    accumulator += frame_time
+
+                    while accumulator >= FIXED_DT:
+                        self.handle_digging_mode(FIXED_DT)
+                        self.normal_fall(FIXED_DT)
+                        self.handle_lock_down(FIXED_DT)
+                        accumulator -= FIXED_DT
+
                     self.handle_shadow()
 
                     if (
@@ -1044,11 +1056,8 @@ class Tetris:
                     ):
                         self.game_over = True
 
-            # Sleep remaining time to maintain target frame rate
-            elapsed = time.time() - current_time
-            sleep_time = (1.0 / self.config.timing.fps) - elapsed
-            if sleep_time > 0:
-                time.sleep(sleep_time)
+            self.draw(frame_time)
+            time.sleep(0.002)
 
     def init_color(self) -> None:
         """initialize terminal color pairs for each tetrimino shape"""
