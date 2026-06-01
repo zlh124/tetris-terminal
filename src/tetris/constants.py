@@ -3,7 +3,7 @@
 from collections import defaultdict
 import curses
 
-from tetris.enums import Direction, TetriminoShape
+from .enums import Direction, TetriminoShape
 
 EMPTY = 0
 

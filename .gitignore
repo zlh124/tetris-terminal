@@ -16,3 +16,6 @@ private/
 
 # vide coding
 CLAUDE.md
+AGENTS.md
+.codewhale/
+.deepseek/

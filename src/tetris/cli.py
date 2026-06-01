@@ -1,24 +1,35 @@
-"""program entrance"""
-
 import argparse
 import curses
 import sys
+from typing import Callable
 
-from tetris.config import Config
-from tetris.logger import logger, setup_from_config
-from tetris.menu import Menu, Sections
-from tetris.settlement import Settlement
-from tetris.tetris import Tetris, GameMode
-from tetris.utils import get_version
+from .config import Config
+from .logger import setup_from_config
+from .menu import Menu, Sections
+from .network import NetworkClient
+from .settlement import Settlement
+from .tetris import Tetris, GameMode
+from .utils import get_version
 
 
-def make_wrapper(disable_config: bool = False):
+def make_wrapper(
+    server_host: str | None = None,
+    server_port: int | None = None,
+    disable_config: bool = False,
+) -> Callable[..., int]:
     def wrapper(stdscr: curses.window) -> int:
         config = Config() if disable_config else Config.load()
+        if server_host is not None:
+            config.multi_play.host = server_host
+        if server_port is not None:
+            config.multi_play.port = server_port
         setup_from_config(config.logging)
 
         curses.update_lines_cols()
-        if curses.LINES < config.display.window_rows or curses.COLS < config.display.window_cols:
+        if (
+            curses.LINES < config.display.window_rows
+            or curses.COLS < config.display.window_cols
+        ):
             raise RuntimeError(
                 f"tetris-terminal needs {config.display.window_rows} rows, and {config.display.window_cols} cols terminal size."
             )
@@ -26,13 +37,14 @@ def make_wrapper(disable_config: bool = False):
         curses.use_default_colors()
         curses.curs_set(False)
         while True:
-            section = Menu(stdscr, config).main()
+            section, network = Menu(stdscr, config).main()
             if Sections(section) == Sections.QUIT:
                 return 0
 
+            # multi game modes
             game_mode = GameMode(section)
+            set_msg = Tetris(stdscr, game_mode, config, network=network).main()
 
-            set_msg = Tetris(stdscr, game_mode, config).main()
             if Settlement(stdscr, set_msg, config).main() == 0:
                 break
         return 0
@@ -58,6 +70,12 @@ def main() -> int:
         action="store_true",
         help="ignore config file and run with defaults",
     )
+    parser.add_argument(
+        "--server",
+        default=None,
+        metavar="HOST:PORT",
+        help="multiplayer server address (default: localhost:8765)",
+    )
 
     args = parser.parse_args()
 
@@ -70,4 +88,23 @@ def main() -> int:
         print(f"Config file created at: {path}")
         return 0
 
-    return curses.wrapper(make_wrapper(disable_config=args.disable_config))
+    host: str | None = None
+    port: int | None = None
+    if args.server is not None:
+        host, _, port_str = args.server.partition(":")
+        if not host:
+            host = None
+        if port_str:
+            try:
+                port = int(port_str)
+            except ValueError:
+                print(f"Invalid port: {port_str}", file=sys.stderr)
+                return 1
+
+    return curses.wrapper(
+        make_wrapper(
+            server_host=host if host else None,
+            server_port=port,
+            disable_config=args.disable_config,
+        )
+    )

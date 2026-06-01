@@ -7,10 +7,13 @@ import time
 from collections import deque
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Generator
+from typing import Any, Generator, TYPE_CHECKING
 
-from tetris.config import Config
-from tetris.constants import (
+if TYPE_CHECKING:
+    from .network import NetworkClient
+
+from .config import Config
+from .constants import (
     EXIT,
     GENERATE_POSITION,
     HARD_DROP,
@@ -25,9 +28,9 @@ from tetris.constants import (
     SHOW_OFFSET,
     SOFT_DROP,
 )
-from tetris.enums import Direction, GameMode, TetriminoShape
-from tetris.settlement import SettlementMessage
-from tetris.utils import draw_win_border
+from .enums import Direction, GameMode, TetriminoShape
+from .settlement import SettlementMessage
+from .utils import draw_win_border, clear_win_without_border
 
 
 class Tetrimino:
@@ -101,11 +104,21 @@ class Tetris:
         return f"{minutes:02d}:{seconds:02d}:{milliseconds:02d}"
 
     def __init__(
-        self, stdscr: curses.window, game_mode: GameMode, config: Config
+        self,
+        stdscr: curses.window,
+        game_mode: GameMode,
+        config: Config,
+        network: "NetworkClient | None" = None,
     ) -> None:
         self.stdscr = stdscr
         self.game_mode = game_mode
         self.config = config
+
+        # Multiplayer
+        self.network = network
+        self.player_id: str = ""
+        self.opponent_id: str = ""
+        self.garbage_queue = 0  # pending garbage line count
 
         # Score / progress
         self.score = 0
@@ -167,11 +180,12 @@ class Tetris:
         self.shadow: list[tuple[int, int]] = []
         self.bag: deque[Tetrimino] = deque(maxlen=14)
 
-        self.hold_window = curses.newwin(7, 12, 0, 0)
-        self.info_window = curses.newwin(11, 12, 7, 0)
-        self.notice_window = curses.newwin(4, 12, 18, 0)
-        self.board_window = curses.newwin(22, 21, 0, 12)
-        self.preview_window = curses.newwin(22, 12, 0, 32)
+        self.header_window = curses.newwin(2, 44, 0, 0)
+        self.hold_window = curses.newwin(7, 12, 2, 0)
+        self.info_window = curses.newwin(15, 12, 9, 0)
+        self.board_window = curses.newwin(22, 21, 2, 12)
+        self.preview_window = curses.newwin(22, 12, 2, 32)
+        self.footer_window = curses.newwin(2, 44, 24, 0)
 
     def replenish_bag(self) -> None:
         """replenish the bag with 7 random tetriminos"""
@@ -505,20 +519,32 @@ class Tetris:
 
     def draw_border(self) -> None:
         """draw border"""
+        header_win = self.header_window
         hold_win = self.hold_window
         info_win = self.info_window
-        notice_win = self.notice_window
         board_win = self.board_window
         preview_win = self.preview_window
+        footer_win = self.footer_window
 
         d = self.config.display
-        draw_win_border(hold_win, d, tr=d.bd_hb, bl=d.bd_vr, br=d.bd_vl)
+        draw_win_border(header_win, d, bl=d.bd_v, br=d.bd_v)
+        draw_win_border(hold_win, d, tl=d.bd_vr, tr=d.bd_hb, bl=d.bd_vr, br=d.bd_vl)
         draw_win_border(
-            info_win, d, ts="", tl=d.bd_v, tr=d.bd_v, bl=d.bd_vr, br=d.bd_vl
+            info_win, d, ts="", tl=d.bd_v, tr=d.bd_v, bl=d.bd_vr, br=d.bd_ht
         )
-        draw_win_border(notice_win, d, ts="", tl=d.bd_v, tr=d.bd_v, br=d.bd_ht)
-        draw_win_border(preview_win, d, tl=d.bd_hb, bl=d.bd_ht)
+        draw_win_border(preview_win, d, tl=d.bd_hb, tr=d.bd_vl, bl=d.bd_ht, br=d.bd_vl)
         draw_win_border(board_win, d, ls="", tl=d.bd_h, tr="", bl=d.bd_h, br=d.bd_ht)
+        draw_win_border(footer_win, d, ts="", tl=d.bd_v, tr=d.bd_v)
+
+    def draw_header(self) -> None:
+        """draw header"""
+        window = self.header_window
+
+        _, width = window.getmaxyx()
+        width -= 2
+
+        window.addstr(1, 1, str(self.game_mode).center(width))
+        window.noutrefresh()
 
     def draw_board(self) -> None:
         """draw board"""
@@ -568,7 +594,7 @@ class Tetris:
                         ),
                     )
 
-        self.board_window.noutrefresh()
+        window.noutrefresh()
 
     def draw_preview(self) -> None:
         """draw preview"""
@@ -578,12 +604,11 @@ class Tetris:
         width -= 2
 
         # Next row 1~height, col 0~10:
-        window.addstr(1, 1, f"{' Next:':<{width}}")
+        window.addstr(1, 1, " Next:".ljust(width))
         # each preview takes 3 rows and 8 cols
         s_col = 2
         # clear the preview area
-        for row in range(2, height):
-            window.addstr(row, s_col - 1, " " * (width))
+        clear_win_without_border(window, 2)
 
         # draw the preview
         for i, s_row in enumerate(range(2, height - 1, 3)):
@@ -606,9 +631,9 @@ class Tetris:
         height -= 1
         width -= 2
 
-        window.addstr(1, 1, f"{' Hold:':<{width}}")
-        for row in range(2, height):
-            window.addstr(row, 1, " " * width)
+        window.addstr(1, 1, " Hold:".ljust(width))
+        # clear the hold area
+        clear_win_without_border(window, 2)
 
         if self.hold:
             shape = self.hold.shape
@@ -633,46 +658,43 @@ class Tetris:
         height -= 1
         width -= 2
 
-        for row in range(0, height):
-            window.addstr(row, 1, " " * (width))
+        # clear the info area
+        clear_win_without_border(window, 1)
 
         if self.game_mode == GameMode.TIME_ATTACK:
-            window.addstr(1, 1, f"{'Time:':<{width}}")
-            window.addstr(2, 1, f"{self.time_remaining:>{width}}")
+            window.addstr(2, 1, "Time:".ljust(width))
+            window.addstr(3, 1, self.time_remaining.rjust(width))
         else:
-            window.addstr(1, 1, f"{'Time:':<{width}}")
-            window.addstr(2, 1, f"{self.game_time_str:>{width}}")
-        window.addstr(3, 1, f"{'Score:':<{width}}")
-        window.addstr(4, 1, f"{str(self.score):>{width}}")
-        window.addstr(5, 1, f"{'Lines:':<{width}}")
-        window.addstr(6, 1, f"{str(self.lines):>{width}}")
-        window.addstr(7, 1, f"{'Level:':<{width}}")
-        window.addstr(8, 1, f"{str(self.level):>{width}}")
+            window.addstr(2, 1, "Time:".ljust(width))
+            window.addstr(3, 1, self.game_time_str.rjust(width))
+        window.addstr(4, 1, "Score:".ljust(width))
+        window.addstr(5, 1, str(self.score).rjust(width))
+        window.addstr(6, 1, "Lines:".ljust(width))
+        window.addstr(7, 1, str(self.lines).rjust(width))
+        window.addstr(8, 1, "Level:".ljust(width))
+        window.addstr(9, 1, str(self.level).rjust(width))
+
+        if self.game_mode == GameMode.VERSUS:
+            window.addstr(10, 1, "Garbage:".ljust(width))
+            window.addstr(11, 1, str(self.garbage_queue).rjust(width))
 
         window.noutrefresh()
 
-    def draw_notice(self) -> None:
+    def draw_footer(self) -> None:
         """draw info"""
 
-        window = self.notice_window
+        window = self.footer_window
         height, width = window.getmaxyx()
 
         height -= 1
         width -= 2
 
         # notice
-        for row in range(0, height):
-            window.addstr(row, 1, " " * width)
+        window.addstr(0, 1, " " * width)
 
         notice = self.get_notice()
         if notice:
-            if len(notice) > width:
-                lines = [notice[i : i + width] for i in range(0, len(notice), width)]
-                lines = lines[:height]
-                for row, line in enumerate(lines):
-                    window.addstr(row, 1, line)
-            else:
-                window.addstr(height // 2, 1, f"{notice:^{width}}")
+            window.addstr(0, 1, notice.center(width))
 
         window.noutrefresh()
 
@@ -684,11 +706,12 @@ class Tetris:
         self.frame_timer = 0
 
         self.draw_border()
+        self.draw_header()
         self.draw_board()
         self.draw_preview()
         self.draw_hold()
         self.draw_info()
-        self.draw_notice()
+        self.draw_footer()
 
         curses.doupdate()
 
@@ -699,7 +722,9 @@ class Tetris:
         it't hard to ctrl the long press and normal press
         """
         c = self.stdscr.getch()
-        if c in PAUSE:
+
+        # versus mode is not pauseable
+        if self.game_mode != GameMode.VERSUS and c in PAUSE:
             self.paused = not self.paused
             if self.paused:
                 if self.running_since is not None:
@@ -805,9 +830,80 @@ class Tetris:
         """clear marked rows, update score, and spawn the next piece"""
         cleared_lines = self.line_clear()
         was_b2b = self.calculate_score(self.pending_t_spin, cleared_lines)
+
+        # Multiplayer garbage offset mechanism
+        outgoing = self.calc_garbage_lines(self.pending_t_spin, cleared_lines, was_b2b)
+        if outgoing > 0:
+            cancelled = min(outgoing, self.garbage_queue)
+            self.garbage_queue -= cancelled
+            outgoing -= cancelled
+        if self.network and outgoing > 0:
+            self.network.send({"type": "garbage", "data": {"lines": outgoing}})
+
+        self.apply_incoming_garbage()
         self.generate_new_tetrimino()
         self.build_notice(self.pending_t_spin, cleared_lines, was_b2b)
         self.pending_t_spin = 0
+
+    def calc_garbage_lines(
+        self, is_t_spin: int, cleared_lines: int, was_b2b: bool
+    ) -> int:
+        """Calculate how many garbage lines to send to the opponent."""
+        lines = 0
+        if is_t_spin == 1:  # T-Spin
+            if cleared_lines == 1:
+                lines = 2
+            elif cleared_lines == 2:
+                lines = 4
+            elif cleared_lines == 3:
+                lines = 6
+        elif is_t_spin == 2:  # Mini T-Spin — no garbage
+            lines = 0
+        else:  # Normal clear
+            if cleared_lines == 2:
+                lines = 1
+            elif cleared_lines == 3:
+                lines = 2
+            elif cleared_lines == 4:
+                lines = 4
+        if lines > 0 and was_b2b:
+            lines += 1
+        return lines
+
+    def apply_incoming_garbage(self) -> None:
+        """Inject pending garbage lines from the queue into the board.
+
+        Each garbage row is pushed from the bottom, shifting everything up.
+        Every group of 8 lines shares the same random hole column.
+        """
+        width = self.config.game_rules.board_width
+        count = self.garbage_queue
+        self.garbage_queue = 0
+
+        col = 0
+        for i in range(count):
+            if i % 8 == 0:
+                col = random.randint(0, width - 1)
+            self.board.pop(0)
+            new_line = [TetriminoShape.GARBAGE] * width
+            new_line[col] = TetriminoShape.EMPTY
+            self.board.append(new_line)
+
+    def handle_network(self) -> None:
+        """Poll for incoming network messages and dispatch them."""
+        if self.network is None:
+            return
+        msg = self.network.recv(timeout=0)
+        if msg is None:
+            return
+        msg_type = msg.get("type")
+        if msg_type == "garbage":
+            lines = msg["data"]["lines"]
+            self.garbage_queue += lines
+            self.set_notice(f"Garbage +{lines}!")
+        elif msg_type in ("game_over", "opponent_disconnected"):
+            self.game_over = True
+            self.set_notice("Opponent disconnected!")
 
     def handle_line_clear_anim(self, delta: float) -> None:
         """end the animation and process line clear once the duration has elapsed"""
@@ -890,7 +986,7 @@ class Tetris:
 
         self.lines += cleared_lines
 
-        if self.game_mode == GameMode._150_ROWS and self.lines >= 150:
+        if self.game_mode == GameMode._150_LINES and self.lines >= 150:
             self.game_over = True
 
         if (
@@ -1029,6 +1125,7 @@ class Tetris:
                 frame_time = MAX_FRAME_TIME
 
             self.handle_input()
+            self.handle_network()
 
             if not self.paused:
                 accumulator += frame_time
@@ -1111,14 +1208,12 @@ class Tetris:
         self.init_game()
         self.game_loop()
 
+        # Notify opponent and clean up network
+        if self.network:
+            self.network.send({"type": "game_over", "data": {}})
+            self.network.close()
+
         # return the settlement message
-        mode_names = {
-            GameMode._150_ROWS: "150 ROWS",
-            GameMode.CASUAL: "CASUAL",
-            GameMode.ENDLESS: "ENDLESS",
-            GameMode.DIGGING: "DIGGING",
-            GameMode.TIME_ATTACK: "TIME ATTACK",
-        }
         return SettlementMessage(
             self.score,
             self.lines,
@@ -1133,5 +1228,5 @@ class Tetris:
             self.t_spin_triple,
             self.mini_t_spin,
             self.mini_t_spin_single,
-            game_mode=mode_names.get(self.game_mode, ""),
+            game_mode=str(self.game_mode),
         )

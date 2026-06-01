@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tetris-terminal"
-version = "0.2.7"
+version = "0.3.0"
 description = "A tetris game runs in the terminal"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -12,7 +12,10 @@ license = { file = "MIT" }
 
 authors = [{ name = "jayzhu", email = "jay.l.zhu@foxmail.com" }]
 
-dependencies = ["windows-curses; sys_platform == 'win32'"]
+dependencies = [
+    "windows-curses; sys_platform == 'win32'",
+    "websockets>=13.0",
+]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -37,6 +40,7 @@ homepage = "https://github.com/zlh124/tetris-terminal"
 
 [project.scripts]
 tetris = "tetris.cli:main"
+tetris-server = "tetris.server:main"
 
 
 [tool.setuptools]

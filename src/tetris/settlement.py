@@ -2,8 +2,8 @@
 
 import curses
 
-from tetris.config import Config
-from tetris.utils import draw_win_border
+from .config import Config
+from .utils import draw_win_border
 
 
 class SettlementMessage:
@@ -83,7 +83,9 @@ class SettlementMessage:
 
 
 class Settlement:
-    def __init__(self, stdscr: curses.window, set_msg: SettlementMessage, config: Config) -> None:
+    def __init__(
+        self, stdscr: curses.window, set_msg: SettlementMessage, config: Config
+    ) -> None:
         self.stdscr = stdscr
         self.set_msg = set_msg
         self.config = config
@@ -110,9 +112,11 @@ class Settlement:
         """draw title"""
         window = self.title_window
         _, width = window.getmaxyx()
-        window.addstr(2, 1, f"{'┏━┓┏━┓┏┳┓┏━   ┏━┓╻ ╻┏━┏━┓':^{width - 2}}")
-        window.addstr(3, 1, f"{'┃ ┳┣━┫┃┃┃┣━   ┃ ┃┗┓┃┣━┣┳┛':^{width - 2}}")
-        window.addstr(4, 1, f"{'┗━┛╹ ╹╹╹╹┗━   ┗━┛ ┗┛┗━┛┗╸':^{width - 2}}")
+        width -= 2
+
+        window.addstr(2, 1, "┏━┓┏━┓┏┳┓┏━   ┏━┓╻ ╻┏━┏━┓".center(width))
+        window.addstr(3, 1, "┃ ┳┣━┫┃┃┃┣━   ┃ ┃┗┓┃┣━┣┳┛".center(width))
+        window.addstr(4, 1, "┗━┛╹ ╹╹╹╹┗━   ┗━┛ ┗┛┗━┛┗╸".center(width))
         window.refresh()
 
     def draw_show(self) -> None:
@@ -128,7 +132,7 @@ class Settlement:
 
         if self.set_msg.game_mode == "TIME ATTACK":
             title = "TIME UP!"
-            window.addstr(start_row - 1, 1, f"{title:^{width}}")
+            window.addstr(start_row - 1, 1, title.center(width))
 
         for i, line in enumerate(messages):
             window.addstr(i + start_row + 1, 1, line)
@@ -142,7 +146,7 @@ class Settlement:
 
         notice = "'q' to quit, 'r' to retry."
 
-        window.addstr(0, 1, f"{notice:^{width - 2}}")
+        window.addstr(0, 1, notice.center(width - 2))
         window.refresh()
 
     def draw(self) -> None:
