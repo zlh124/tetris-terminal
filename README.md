@@ -56,6 +56,78 @@ tetris
 | `--disable-config`  | Ignore config file and run with built-in defaults    |
 | `--version`         | Show version and exit                                |
 
+### Multiplayer (Versus Mode)
+
+Compete in real-time 1v1 battles over WebSocket. Clear lines to send garbage to your opponent — the last player standing wins.
+
+```
+┌─ Server ─┐      ┌─ Client A ─┐      ┌─ Client B ─┐
+│           │ ←──→ │  game loop │      │  game loop  │
+│   Room    │      │            │ ←──→ │             │
+│           │ ←──→ │  network   │      │  network    │
+└───────────┘      └────────────┘      └─────────────┘
+```
+
+#### Quick Start
+
+```bash
+# Terminal 1 — start the server
+tetris-server
+
+# Terminal 2 — connect client A
+tetris --server localhost:8765
+
+# Terminal 3 — connect client B
+tetris --server localhost:8765
+```
+
+Once both clients connect, the server matches them and the battle begins.
+
+#### CLI
+
+| Command                      | Description                              |
+| ---------------------------- | ---------------------------------------- |
+| `tetris-server`              | Start the WebSocket matchmaking server   |
+| `tetris`                     | Launch the game in single-player modes   |
+| `tetris --server HOST:PORT`  | Launch the game in multiplayer mode      |
+
+#### `tetris-server` Options
+
+| Option          | Default       | Description               |
+| --------------- | ------------- | ------------------------- |
+| `--host`        | `0.0.0.0`     | Host address to bind      |
+| `--port`        | `8765`        | Port to listen on         |
+| `--version`     |               | Show version and exit     |
+
+#### `tetris --server` Options
+
+| Option              | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| `--server HOST:PORT`| Connect to a multiplayer server (default: `localhost:8765`) |
+| `--disable-config`  | Ignore config file and run with built-in defaults    |
+| `--version`         | Show version and exit                                |
+
+#### Gameplay
+
+- **Garbage system**: Each cleared line generates garbage based on the standard Tetris scoring — more lines at once send more garbage.
+- **Incoming garbage** is shown as a **Garbage** counter on the side panel.
+- **Garbage cancellation**: Clearing lines while you have pending garbage cancels an equal number of incoming lines.
+- **No pause**: Versus mode disables pause to keep both players in sync.
+- **Opponent disconnect**: If the opponent disconnects, the match ends immediately.
+
+#### Configuration
+
+##### `multi_play`
+
+Connection settings for multiplayer mode.
+
+| Key      | Default       | Description                |
+| -------- | ------------- | -------------------------- |
+| `host`   | `"localhost"` | Server hostname or IP      |
+| `port`   | `8765`        | Server port                |
+
+---
+
 ### Configuration
 
 On first run, or via `tetris --generate-config`, a configuration file is created at:

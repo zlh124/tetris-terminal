@@ -6,8 +6,8 @@ from functools import wraps
 from importlib.metadata import PackageNotFoundError, version
 from typing import Callable
 
-from tetris.logger import logger
-from tetris.config import DisplayConfig
+from .logger import logger
+from .config import DisplayConfig
 
 
 def timed(func: Callable) -> Callable:
@@ -20,7 +20,9 @@ def timed(func: Callable) -> Callable:
             return func(*args, **kwargs)
         finally:
             elapsed = (time.perf_counter() - start) * 1000
-            logger.debug("%s.%s took %.3f ms", func.__module__, func.__qualname__, elapsed)
+            logger.debug(
+                "%s.%s took %.3f ms", func.__module__, func.__qualname__, elapsed
+            )
 
     return wrapper
 
@@ -102,3 +104,12 @@ def draw_win_border(
     for i in range(1, height - 1):
         safe_addstr(win, i, 0, _ls)
         safe_addstr(win, i, width - 1, _rs)
+
+
+def clear_win_without_border(win: curses.window, start_row: int = 1) -> None:
+    """clear window without border"""
+    r, c = win.getmaxyx()
+    r -= 1
+    c -= 2
+    for row in range(start_row, r):
+        win.addstr(row, 1, " " * c)

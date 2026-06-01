@@ -42,19 +42,27 @@ class GameMode(Enum):
     :4: time attack, clear as many lines as possible in 2 minutes
     """
 
-    _150_ROWS = 0
+    _150_LINES = 0
     CASUAL = 1
     ENDLESS = 2
     DIGGING = 3
     TIME_ATTACK = 4
+    VERSUS = 5
+
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").strip()
 
 
 class Sections(Enum):
     """game mode selection"""
 
-    _150_ROWS = 0
+    _150_LINES = 0
     CASUAL = 1
     ENDLESS = 2
     DIGGING = 3
     TIME_ATTACK = 4
-    QUIT = 5
+    VERSUS = 5
+    QUIT = 6
+
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").strip()

@@ -14,7 +14,7 @@ class DisplayConfig:
     """visual display settings"""
 
     # internal (not loaded from config file)
-    window_rows: int = 22
+    window_rows: int = 26
     window_cols: int = 44
 
     # customizable
@@ -45,6 +45,12 @@ class TimingConfig:
     clear_anim_duration: float = 0.3
 
     _internal = frozenset()
+
+
+@dataclass
+class MultiPlayConfig:
+    host: str = "localhost"
+    port: int = 8765
 
 
 @dataclass
@@ -93,6 +99,7 @@ class Config:
     timing: TimingConfig = field(default_factory=TimingConfig)
     game_rules: GameRulesConfig = field(default_factory=GameRulesConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    multi_play: MultiPlayConfig = field(default_factory=MultiPlayConfig)
 
     @staticmethod
     def config_path() -> Path:
@@ -145,6 +152,7 @@ class Config:
             "timing": _dataclass_defaults(TimingConfig),
             "game_rules": _dataclass_defaults(GameRulesConfig),
             "logging": _dataclass_defaults(LoggingConfig),
+            "multi_play": _dataclass_defaults(MultiPlayConfig),
         }
 
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -160,8 +168,13 @@ class Config:
         timing = _merge_dataclass(TimingConfig, data.get("timing", {}))
         game_rules = _merge_dataclass(GameRulesConfig, data.get("game_rules", {}))
         logging_cfg = _merge_dataclass(LoggingConfig, data.get("logging", {}))
+        multi_play = _merge_dataclass(MultiPlayConfig, data.get("multi_play", {}))
         return cls(
-            display=display, timing=timing, game_rules=game_rules, logging=logging_cfg
+            display=display,
+            timing=timing,
+            game_rules=game_rules,
+            logging=logging_cfg,
+            multi_play=multi_play,
         )
 
 

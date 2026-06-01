@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tetris.config import LoggingConfig
+    from .config import LoggingConfig
 
 logger = logging.getLogger("tetris")
 
