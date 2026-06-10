@@ -42,12 +42,23 @@ homepage = "https://github.com/zlh124/tetris-terminal"
 tetris = "tetris.cli:main"
 tetris-server = "tetris.server:main"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+]
+
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["*.md"]

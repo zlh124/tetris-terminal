@@ -16,6 +16,7 @@ class DisplayConfig:
     # internal (not loaded from config file)
     window_rows: int = 26
     window_cols: int = 44
+    window_cols_versus_mode = 65
 
     # customizable
     empty_cell: str = "  "
@@ -33,7 +34,7 @@ class DisplayConfig:
     bd_hb: str = "┬"
     bd_ht: str = "┴"
 
-    _internal = frozenset({"window_rows", "window_cols"})
+    _internal = frozenset({"window_rows", "window_cols", "window_cols_versus_mode"})
 
 
 @dataclass
@@ -146,14 +147,10 @@ class Config:
         if path.exists():
             raise FileExistsError(f"config file already exists: {path}")
 
-        data = {
-            "$schema": "https://raw.githubusercontent.com/zlh124/tetris-terminal/refs/heads/master/config-schema.json",
-            "display": _dataclass_defaults(DisplayConfig),
-            "timing": _dataclass_defaults(TimingConfig),
-            "game_rules": _dataclass_defaults(GameRulesConfig),
-            "logging": _dataclass_defaults(LoggingConfig),
-            "multi_play": _dataclass_defaults(MultiPlayConfig),
-        }
+        data = cls.get_config_data()
+        data["$schema"] = (
+            "https://raw.githubusercontent.com/zlh124/tetris-terminal/refs/heads/master/config-schema.json"
+        )
 
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
@@ -176,6 +173,16 @@ class Config:
             logging=logging_cfg,
             multi_play=multi_play,
         )
+
+    @classmethod
+    def get_config_data(cls) -> dict:
+        return {
+            "display": _dataclass_defaults(DisplayConfig),
+            "timing": _dataclass_defaults(TimingConfig),
+            "game_rules": _dataclass_defaults(GameRulesConfig),
+            "logging": _dataclass_defaults(LoggingConfig),
+            "multi_play": _dataclass_defaults(MultiPlayConfig),
+        }
 
 
 def _merge_dataclass(cls_type, data: dict):

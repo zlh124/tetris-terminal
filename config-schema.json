@@ -131,6 +131,23 @@
         }
       },
       "additionalProperties": false
+    },
+    "multi_play": {
+      "type": "object",
+      "description": "Multiplayer (versus mode) connection settings.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "localhost"
+        },
+        "port": {
+          "type": "integer",
+          "default": 8765,
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

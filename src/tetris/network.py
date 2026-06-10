@@ -12,6 +12,8 @@ from typing import Any
 from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect, ClientConnection
 
+from .enums import WebClientMsgType
+
 
 class NetworkClient:
     """Synchronous WebSocket client for 1v1 Tetris."""
@@ -27,9 +29,11 @@ class NetworkClient:
         Raises :exc:`RuntimeError` on version mismatch.
         """
         self._ws = connect(f"ws://{host}:{port}")
-        self._ws.send(json.dumps({"type": "hello", "data": {"version": version}}))
+        self._ws.send(
+            json.dumps({"type": WebClientMsgType.HELLO, "data": {"version": version}})
+        )
         msg = json.loads(self._ws.recv())
-        if msg.get("type") == "error":
+        if msg.get("type") == WebClientMsgType.ERROR:
             raise RuntimeError(msg["data"]["message"])
         self.player_id = msg["data"]["your_id"]
 
@@ -37,14 +41,17 @@ class NetworkClient:
         """Block until a ``match_found`` message arrives.
 
         Returns the opponent's ID.
+        Raises :exc:`RuntimeError` if the server is full.
         """
         if self._ws is None:
             raise RuntimeError("Not connected")
         while True:
             msg = json.loads(self._ws.recv())
-            if msg.get("type") == "match_found":
+            if msg.get("type") == WebClientMsgType.MATCH_FOUND:
                 self.opponent_id = msg["data"]["opponent_id"]
                 return self.opponent_id
+            if msg.get("type") == WebClientMsgType.SERVER_FULL:
+                raise RuntimeError("Server is full")
 
     def send(self, data: dict[str, Any]) -> None:
         """Send a JSON message to the server."""

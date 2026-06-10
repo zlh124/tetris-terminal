@@ -28,7 +28,7 @@ from .constants import (
     SHOW_OFFSET,
     SOFT_DROP,
 )
-from .enums import Direction, GameMode, TetriminoShape
+from .enums import Direction, GameMode, TetriminoShape, WebClientMsgType
 from .settlement import SettlementMessage
 from .utils import draw_win_border, clear_win_without_border
 
@@ -180,12 +180,19 @@ class Tetris:
         self.shadow: list[tuple[int, int]] = []
         self.bag: deque[Tetrimino] = deque(maxlen=14)
 
-        self.header_window = curses.newwin(2, 44, 0, 0)
         self.hold_window = curses.newwin(7, 12, 2, 0)
         self.info_window = curses.newwin(15, 12, 9, 0)
         self.board_window = curses.newwin(22, 21, 2, 12)
         self.preview_window = curses.newwin(22, 12, 2, 32)
-        self.footer_window = curses.newwin(2, 44, 24, 0)
+
+        if self.game_mode == GameMode.VERSUS:
+            self.header_window = curses.newwin(2, 65, 0, 0)
+            self.rival_window = curses.newwin(22, 21, 2, 44)
+            self.footer_window = curses.newwin(2, 65, 24, 0)
+        else:
+            self.header_window = curses.newwin(2, 44, 0, 0)
+            self.rival_window = None
+            self.footer_window = curses.newwin(2, 44, 24, 0)
 
     def replenish_bag(self) -> None:
         """replenish the bag with 7 random tetriminos"""
@@ -525,16 +532,57 @@ class Tetris:
         board_win = self.board_window
         preview_win = self.preview_window
         footer_win = self.footer_window
+        rival_win = self.rival_window
 
         d = self.config.display
+        if self.game_mode == GameMode.VERSUS:
+            if rival_win:
+                draw_win_border(
+                    rival_win, d, ls="", tl=d.bd_h, tr=d.bd_vl, bl=d.bd_h, br=d.bd_vl
+                )
+                rival_win.refresh()
+            draw_win_border(
+                preview_win, d, tl=d.bd_hb, tr=d.bd_hb, bl=d.bd_ht, br=d.bd_ht
+            )
+        else:
+            draw_win_border(
+                preview_win, d, tl=d.bd_hb, tr=d.bd_vl, bl=d.bd_ht, br=d.bd_vl
+            )
+
         draw_win_border(header_win, d, bl=d.bd_v, br=d.bd_v)
         draw_win_border(hold_win, d, tl=d.bd_vr, tr=d.bd_hb, bl=d.bd_vr, br=d.bd_vl)
         draw_win_border(
             info_win, d, ts="", tl=d.bd_v, tr=d.bd_v, bl=d.bd_vr, br=d.bd_ht
         )
-        draw_win_border(preview_win, d, tl=d.bd_hb, tr=d.bd_vl, bl=d.bd_ht, br=d.bd_vl)
         draw_win_border(board_win, d, ls="", tl=d.bd_h, tr="", bl=d.bd_h, br=d.bd_ht)
         draw_win_border(footer_win, d, ts="", tl=d.bd_v, tr=d.bd_v)
+
+    def draw_rival(self, board: list[list[int]]) -> None:
+        """draw rival"""
+        window = self.rival_window
+        if window is None:
+            return
+
+        _, width = window.getmaxyx()
+
+        width -= 1
+
+        for i in range(20, self.config.game_rules.board_height):
+            line = i - 19
+            for j in range(self.config.game_rules.board_width):
+                cell = TetriminoShape(board[i][j])
+                window.addstr(
+                    line,
+                    2 * j,
+                    (
+                        self.config.display.solid_cell
+                        if cell != TetriminoShape.EMPTY
+                        else self.config.display.empty_cell
+                    ),
+                    self.get_color(cell),
+                )
+
+        window.noutrefresh()
 
     def draw_header(self) -> None:
         """draw header"""
@@ -817,6 +865,7 @@ class Tetris:
                     self.board[row][col] = TetriminoShape.CLEAR
                 has_clear = True
 
+        # reset lock down
         self.lock_down_timer = 0
         self.lock_down_move_counter = 0
         self.hold_once = False
@@ -825,6 +874,10 @@ class Tetris:
             self.animating = True
         else:
             self.finish_lock_down()
+
+    def serialize_board(self) -> list[list[int]]:
+        """serialize the board, for versus mode rival display"""
+        return [[v.value for v in row] for row in self.board]
 
     def finish_lock_down(self) -> None:
         """clear marked rows, update score, and spawn the next piece"""
@@ -837,10 +890,21 @@ class Tetris:
             cancelled = min(outgoing, self.garbage_queue)
             self.garbage_queue -= cancelled
             outgoing -= cancelled
-        if self.network and outgoing > 0:
-            self.network.send({"type": "garbage", "data": {"lines": outgoing}})
-
+        
         self.apply_incoming_garbage()
+
+        if self.network:
+            if outgoing > 0:
+                self.network.send(
+                    {"type": WebClientMsgType.GARBAGE, "data": {"lines": outgoing}}
+                )
+            self.network.send(
+                {
+                    "type": WebClientMsgType.BOARD,
+                    "data": {"board": self.serialize_board()},
+                }
+            )
+
         self.generate_new_tetrimino()
         self.build_notice(self.pending_t_spin, cleared_lines, was_b2b)
         self.pending_t_spin = 0
@@ -896,12 +960,17 @@ class Tetris:
         msg = self.network.recv(timeout=0)
         if msg is None:
             return
-        msg_type = msg.get("type")
-        if msg_type == "garbage":
+        msg_type = msg.get("type", -1)
+        if msg_type == WebClientMsgType.GARBAGE:
             lines = msg["data"]["lines"]
             self.garbage_queue += lines
             self.set_notice(f"Garbage +{lines}!")
-        elif msg_type in ("game_over", "opponent_disconnected"):
+        elif msg_type == WebClientMsgType.BOARD:
+            self.draw_rival(msg["data"]["board"])
+        elif msg_type in (
+            WebClientMsgType.GAME_OVER,
+            WebClientMsgType.OPPONENT_DISCONNECTED,
+        ):
             self.game_over = True
             self.set_notice("Opponent disconnected!")
 
@@ -1210,8 +1279,11 @@ class Tetris:
 
         # Notify opponent and clean up network
         if self.network:
-            self.network.send({"type": "game_over", "data": {}})
+            self.network.send({"type": WebClientMsgType.GAME_OVER, "data": {}})
             self.network.close()
+
+            self.stdscr.clear()
+            self.stdscr.refresh()
 
         # return the settlement message
         return SettlementMessage(
