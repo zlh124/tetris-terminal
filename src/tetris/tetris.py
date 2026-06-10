@@ -1,5 +1,7 @@
 """main game logic"""
 
+from __future__ import annotations
+
 import curses
 import random
 import time
@@ -890,7 +892,7 @@ class Tetris:
             cancelled = min(outgoing, self.garbage_queue)
             self.garbage_queue -= cancelled
             outgoing -= cancelled
-        
+
         self.apply_incoming_garbage()
 
         if self.network:
@@ -959,6 +961,9 @@ class Tetris:
             return
         msg = self.network.recv(timeout=0)
         if msg is None:
+            if not self.network.connected:
+                self.game_over = True
+                self.set_notice("Opponent disconnected!")
             return
         msg_type = msg.get("type", -1)
         if msg_type == WebClientMsgType.GARBAGE:
@@ -1282,8 +1287,8 @@ class Tetris:
             self.network.send({"type": WebClientMsgType.GAME_OVER, "data": {}})
             self.network.close()
 
-            self.stdscr.clear()
-            self.stdscr.refresh()
+        self.stdscr.clear()
+        self.stdscr.refresh()
 
         # return the settlement message
         return SettlementMessage(

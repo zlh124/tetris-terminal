@@ -1,5 +1,7 @@
 """settlement display ui"""
 
+from __future__ import annotations
+
 import curses
 
 from .config import Config

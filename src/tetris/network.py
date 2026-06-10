@@ -4,6 +4,8 @@ Wraps the ``websockets.sync.client`` API for integration with the
 synchronous curses-based game loop.
 """
 
+from __future__ import annotations
+
 import json
 from typing import Any
 
@@ -20,6 +22,11 @@ class NetworkClient:
         self._ws: ClientConnection | None = None
         self.player_id: str = ""
         self.opponent_id: str = ""
+
+    @property
+    def connected(self) -> bool:
+        """Return True if the WebSocket connection is still open."""
+        return self._ws is not None
 
     def handshake(self, host: str, port: int, version: str) -> None:
         """Connect to server and perform version handshake.
@@ -61,12 +68,20 @@ class NetworkClient:
             self._ws = None
 
     def recv(self, timeout: float = 0) -> dict[str, Any] | None:
-        """Non-blocking receive. Returns a parsed JSON dict, or None."""
+        """Non-blocking receive. Returns a parsed JSON dict, or None.
+
+        When the connection is closed by the remote end mid-receive,
+        ``self._ws`` is set to ``None`` so callers can detect the
+        disconnection via the ``connected`` property.
+        """
         if self._ws is None:
             return None
         try:
             return json.loads(self._ws.recv(timeout=timeout))
-        except (TimeoutError, ConnectionClosed):
+        except TimeoutError:
+            return None
+        except ConnectionClosed:
+            self._ws = None
             return None
 
     def close(self) -> None:

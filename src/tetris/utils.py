@@ -1,5 +1,7 @@
 """utils"""
 
+from __future__ import annotations
+
 import curses
 import time
 from functools import wraps

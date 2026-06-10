@@ -1,5 +1,7 @@
 """WebSocket server for 1v1 multiplayer Tetris."""
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
@@ -32,7 +34,9 @@ class Player:
 class Room:
     """Holds two matched players and relays messages between them."""
 
-    def __init__(self, player_a: Player, player_b: Player, matchmaker: "Matchmaker | None" = None):
+    def __init__(
+        self, player_a: Player, player_b: Player, matchmaker: Matchmaker | None = None
+    ):
         self.players = [player_a, player_b]
         player_a.room = self
         player_b.room = self
