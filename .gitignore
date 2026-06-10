@@ -19,3 +19,7 @@ CLAUDE.md
 AGENTS.md
 .codewhale/
 .deepseek/
+
+# pytest
+.pytest_cache/
+.coverage

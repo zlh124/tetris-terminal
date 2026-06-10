@@ -1,10 +1,13 @@
 """game menu, mode selection"""
 
+from __future__ import annotations
+
 import curses
 
 
 from .config import Config
-from .enums import Sections
+from .enums import Sections, WebClientMsgType
+from .logger import logger
 from .network import NetworkClient
 from .utils import clear_win_without_border, draw_win_border, get_version
 
@@ -46,7 +49,8 @@ class Menu:
 
         try:
             network.handshake(host, port, get_version())
-        except OSError | RuntimeError:
+        except (OSError, RuntimeError) as e:
+            logger.error(f"Connection failed: {e!r}")
             win.addstr(7, 1, f"Failed to connect.".center(y))
             win.addstr(9, 1, "Press any key to return...".center(y))
             win.refresh()
@@ -57,14 +61,23 @@ class Menu:
         dots = 0
         while True:
             msg = network.recv(timeout=0.5)
-            if msg is not None and msg.get("type") == "match_found":
-                network.opponent_id = msg["data"]["opponent_id"]
-                break
+            if msg is not None:
+                msg_type = msg.get("type")
+                if msg_type == WebClientMsgType.MATCH_FOUND:
+                    network.opponent_id = msg["data"]["opponent_id"]
+                    break
+                if msg_type == WebClientMsgType.SERVER_FULL:
+                    win.addstr(7, 1, "Server is full".center(y))
+                    win.addstr(9, 1, "Press any key to return...".center(y))
+                    win.refresh()
+                    win.getch()
+                    network.close()
+                    return None
             dots = (dots + 1) % 4
             win.addstr(7, 1, f"Waiting for opponent{'.' * dots}".center(y))
             win.addstr(9, 1, f"Press 'q' to cancel.".center(y))
             if self.stdscr.getch() == ord("q"):
-                network.send({"type": "leave_queue", "data": {}})
+                network.send({"type": WebClientMsgType.LEAVE_QUEUE, "data": {}})
                 network.close()
                 return None
             win.refresh()
@@ -152,6 +165,16 @@ class Menu:
             self.draw()
 
         if self.confirm and Sections(self.cur_section) == Sections.VERSUS:
+
+            terminal_height, terminal_width = self.stdscr.getmaxyx()
+            if (
+                terminal_height < self.config.display.window_rows
+                or terminal_width < self.config.display.window_cols_versus_mode
+            ):
+                raise RuntimeError(
+                    f"verses mode needs {self.config.display.window_rows} rows, "
+                    f"and {self.config.display.window_cols_versus_mode} cols terminal size."
+                )
 
             network = self.versus_lobby()
             if network is None:

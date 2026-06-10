@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -27,10 +28,12 @@ def setup_from_config(config: LoggingConfig) -> None:
     filepath = log_dir / filename
 
     handler = logging.FileHandler(filepath, encoding="utf-8")
-    handler.setFormatter(logging.Formatter(
-        FMT.replace("%(asctime)s", "%(asctime)s.%(msecs)03d"),
-        datefmt="%Y-%m-%d " + DATE_FMT,
-    ))
+    handler.setFormatter(
+        logging.Formatter(
+            FMT.replace("%(asctime)s", "%(asctime)s.%(msecs)03d"),
+            datefmt="%Y-%m-%d " + DATE_FMT,
+        )
+    )
     logger.addHandler(handler)
     logger.setLevel(config.level.upper())
 

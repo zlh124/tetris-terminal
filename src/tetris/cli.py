@@ -1,12 +1,15 @@
+"""tetris-terminal entry point"""
+
+from __future__ import annotations
+
 import argparse
 import curses
 import sys
 from typing import Callable
 
 from .config import Config
-from .logger import setup_from_config
+from .logger import setup_from_config, logger
 from .menu import Menu, Sections
-from .network import NetworkClient
 from .settlement import Settlement
 from .tetris import Tetris, GameMode
 from .utils import get_version
@@ -15,20 +18,21 @@ from .utils import get_version
 def make_wrapper(
     server_host: str | None = None,
     server_port: int | None = None,
-    disable_config: bool = False,
+    config: Config | None = None,
 ) -> Callable[..., int]:
+    if config is None:
+        config = Config.load()
+
     def wrapper(stdscr: curses.window) -> int:
-        config = Config() if disable_config else Config.load()
         if server_host is not None:
             config.multi_play.host = server_host
         if server_port is not None:
             config.multi_play.port = server_port
-        setup_from_config(config.logging)
 
-        curses.update_lines_cols()
+        terminal_height, terminal_width = stdscr.getmaxyx()
         if (
-            curses.LINES < config.display.window_rows
-            or curses.COLS < config.display.window_cols
+            terminal_height < config.display.window_rows
+            or terminal_width < config.display.window_cols
         ):
             raise RuntimeError(
                 f"tetris-terminal needs {config.display.window_rows} rows, and {config.display.window_cols} cols terminal size."
@@ -38,7 +42,7 @@ def make_wrapper(
         curses.curs_set(False)
         while True:
             section, network = Menu(stdscr, config).main()
-            if Sections(section) == Sections.QUIT:
+            if section == Sections.QUIT:
                 return 0
 
             # multi game modes
@@ -88,6 +92,14 @@ def main() -> int:
         print(f"Config file created at: {path}")
         return 0
 
+    disable_config = args.disable_config
+    config = Config() if disable_config else Config.load()
+    setup_from_config(config.logging)
+
+    logger.info("Tetris Terminal Started!")
+    logger.info(f"Config: {config.get_config_data()}")
+    logger.info(f"params: {args._get_kwargs()}")
+
     host: str | None = None
     port: int | None = None
     if args.server is not None:
@@ -97,14 +109,16 @@ def main() -> int:
         if port_str:
             try:
                 port = int(port_str)
+                if not (0 <= port <= 65535):
+                    raise ValueError
             except ValueError:
                 print(f"Invalid port: {port_str}", file=sys.stderr)
                 return 1
 
     return curses.wrapper(
         make_wrapper(
-            server_host=host if host else None,
+            server_host=host,
             server_port=port,
-            disable_config=args.disable_config,
+            config=config,
         )
     )
