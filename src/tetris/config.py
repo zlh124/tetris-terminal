@@ -1,7 +1,5 @@
 """configuration for tetris-terminal"""
 
-from __future__ import annotations
-
 import json
 import os
 import sys
@@ -115,7 +113,7 @@ class Config:
         return base / "tetris-terminal" / "config.json"
 
     @classmethod
-    def load(cls, path: Path | None = None) -> Config:
+    def load(cls, path: Path | None = None) -> "Config":
         """Load config from JSON file, falling back to defaults for missing keys."""
         if path is None:
             path = cls.config_path()
@@ -159,7 +157,7 @@ class Config:
         return path
 
     @classmethod
-    def _merge(cls, data: dict) -> Config:
+    def _merge(cls, data: dict) -> "Config":
         """Merge a dict (from JSON) into a Config, preserving defaults for missing keys."""
         display = _merge_dataclass(DisplayConfig, data.get("display", {}))
         timing = _merge_dataclass(TimingConfig, data.get("timing", {}))

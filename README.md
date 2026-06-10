@@ -6,7 +6,7 @@
 A terminal-based Tetris game written in Python using the `curses` library.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)]()
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)]()
 
 ### Features
 

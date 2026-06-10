@@ -4,8 +4,6 @@ Wraps the ``websockets.sync.client`` API for integration with the
 synchronous curses-based game loop.
 """
 
-from __future__ import annotations
-
 import json
 from typing import Any
 

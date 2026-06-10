@@ -6,7 +6,7 @@
 一款基于终端的俄罗斯方块游戏，使用 Python 和 `curses` 库编写。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)]()
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)]()
 
 ### 特性
 
