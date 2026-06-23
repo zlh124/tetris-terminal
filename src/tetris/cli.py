@@ -1,11 +1,11 @@
-"""tetris-terminal entry point"""
+"""tetris-terminal CLI entry point."""
 
 from __future__ import annotations
 
 import argparse
 import curses
 import sys
-from typing import Callable
+from typing import Any, Callable
 
 from .config import Config
 from .logger import setup_from_config, logger
@@ -19,7 +19,20 @@ def make_wrapper(
     server_host: str | None = None,
     server_port: int | None = None,
     config: Config | None = None,
-) -> Callable[..., int]:
+) -> Callable[[curses.window], int]:
+    """Build a callable suitable for ``curses.wrapper()``.
+
+    The returned function initialises the game UI on the given curses
+    window and runs the menu → game → settlement loop.
+
+    Args:
+        server_host: Override for the multiplayer server hostname.
+        server_port: Override for the multiplayer server port.
+        config: Configuration object (loaded from disk if ``None``).
+
+    Returns:
+        A function accepting a ``curses.window`` and returning an exit code.
+    """
     if config is None:
         config = Config.load()
 
@@ -57,6 +70,11 @@ def make_wrapper(
 
 
 def main() -> int:
+    """Parse CLI arguments and launch tetris-terminal.
+
+    Returns:
+        Exit code (``0`` on success, ``1`` on error).
+    """
     parser = argparse.ArgumentParser(
         description="Tetris Terminal",
         epilog=f"Tetris Terminal v{get_version()}",
@@ -92,7 +110,7 @@ def main() -> int:
         print(f"Config file created at: {path}")
         return 0
 
-    disable_config = args.disable_config
+    disable_config: bool = args.disable_config
     config = Config() if disable_config else Config.load()
     setup_from_config(config.logging)
 
