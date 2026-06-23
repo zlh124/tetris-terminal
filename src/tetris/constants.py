@@ -1,26 +1,36 @@
-"""constants"""
+"""Constants and lookup tables for tetris-terminal.
+
+Defines key bindings, tetrimino shapes, SRS rotation tables, wall-kick
+offsets, and generation positions used by the game core.
+"""
 
 from __future__ import annotations
 
 from collections import defaultdict
 import curses
+from typing import Any
 
 from .enums import Direction, TetriminoShape
 
-EMPTY = 0
+EMPTY: int = 0
 
-# keymap
-MOVE_LEFT = [curses.KEY_LEFT, ord("A"), ord("a")]
-MOVE_RIGHT = [curses.KEY_RIGHT, ord("D"), ord("d")]
-SOFT_DROP = [curses.KEY_DOWN, ord("s"), ord("S")]
-ROTATE_CW = [curses.KEY_UP, ord("x"), ord("X"), ord("w"), ord("W")]
-ROTATE_CCW = [ord("z"), ord("Z")]
-HOLD = [ord("c"), ord("C")]
-HARD_DROP = [ord(" ")]
-EXIT = [ord("q"), ord("Q")]
-PAUSE = [ord("p"), ord("P")]
+# ---------------------------------------------------------------------------
+# Key mappings
+# ---------------------------------------------------------------------------
+MOVE_LEFT: list[int] = [curses.KEY_LEFT, ord("A"), ord("a")]
+MOVE_RIGHT: list[int] = [curses.KEY_RIGHT, ord("D"), ord("d")]
+SOFT_DROP: list[int] = [curses.KEY_DOWN, ord("s"), ord("S")]
+ROTATE_CW: list[int] = [curses.KEY_UP, ord("x"), ord("X"), ord("w"), ord("W")]
+ROTATE_CCW: list[int] = [ord("z"), ord("Z")]
+HOLD: list[int] = [ord("c"), ord("C")]
+HARD_DROP: list[int] = [ord(" ")]
+EXIT: list[int] = [ord("q"), ord("Q")]
+PAUSE: list[int] = [ord("p"), ord("P")]
 
-SHAPE_TABLE = {
+# ---------------------------------------------------------------------------
+# Tetrimino shapes — cells relative to the standard rotation centre
+# ---------------------------------------------------------------------------
+SHAPE_TABLE: dict[TetriminoShape, list[tuple[int, int]]] = {
     TetriminoShape.I: [(0, 0), (0, 1), (0, 2), (0, 3)],
     TetriminoShape.J: [(0, 0), (1, 0), (1, 1), (1, 2)],
     TetriminoShape.L: [(0, 0), (0, 1), (0, 2), (-1, 2)],
@@ -30,8 +40,11 @@ SHAPE_TABLE = {
     TetriminoShape.Z: [(0, 0), (0, 1), (1, 1), (1, 2)],
 }
 
-# the standard rotate axis
-ROTATE_AXIS = {
+# ---------------------------------------------------------------------------
+# Standard rotation axis (row, col), from the first cell of the shape table.
+# The I and O pieces use a double-axis midpoint.
+# ---------------------------------------------------------------------------
+ROTATE_AXIS: dict[TetriminoShape, list[int | tuple[int, int]]] = {
     TetriminoShape.I: [(0, 1), (1, 2)],
     TetriminoShape.J: [1, 1],
     TetriminoShape.L: [0, 1],
@@ -41,8 +54,10 @@ ROTATE_AXIS = {
     TetriminoShape.Z: [1, 1],
 }
 
-# the offset for preview and hold
-SHOW_OFFSET = {
+# ---------------------------------------------------------------------------
+# Drawing offsets for the preview / hold windows so each piece is centred
+# ---------------------------------------------------------------------------
+SHOW_OFFSET: dict[TetriminoShape, tuple[int, int]] = {
     TetriminoShape.I: (1, 0),
     TetriminoShape.J: (1, 0),
     TetriminoShape.L: (2, 0),
@@ -52,8 +67,10 @@ SHOW_OFFSET = {
     TetriminoShape.Z: (1, 0),
 }
 
-# the tetrimino generation position in the board
-GENERATE_POSITION = {
+# ---------------------------------------------------------------------------
+# Spawn positions in the board (row, col) — top of the buffer zone
+# ---------------------------------------------------------------------------
+GENERATE_POSITION: dict[TetriminoShape, tuple[int, int]] = {
     TetriminoShape.I: (19, 3),
     TetriminoShape.J: (18, 3),
     TetriminoShape.L: (19, 3),
@@ -64,12 +81,15 @@ GENERATE_POSITION = {
 }
 
 
-# SRS (super rotate system), retrieve the table for rotate position
-# {shape: {(start_direction, end_direction): {standard_rotate_diff: [x, y], offsets: [(x, y),...]}}}
-ROTATE_TABLE = defaultdict(lambda: defaultdict(dict))
+# ---------------------------------------------------------------------------
+# SRS (Super Rotation System) wall-kick offset tables.
+#
+# ROTATE_TABLE shape:
+#   {shape: {(start_dir, end_dir): {"standard_rotate_diff": [(dx, dy), ...],
+#                                    "offsets":              [(dx, dy), ...]}}}
+# ---------------------------------------------------------------------------
 
-
-JLSTZ_WALL_KICK_OFFSET = {
+JLSTZ_WALL_KICK_OFFSET: dict[tuple[Direction, Direction], list[tuple[int, int]]] = {
     (Direction.NORTH, Direction.EAST): [(0, 0), (0, -1), (-1, -1), (2, 0), (2, -1)],
     (Direction.EAST, Direction.NORTH): [(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)],
     (Direction.EAST, Direction.SOUTH): [(0, 0), (0, 1), (1, 1), (-2, 0), (-2, 1)],
@@ -80,7 +100,7 @@ JLSTZ_WALL_KICK_OFFSET = {
     (Direction.NORTH, Direction.WEST): [(0, 0), (0, 1), (-1, 1), (2, 0), (2, 1)],
 }
 
-O_WALL_KICK_OFFSET = {
+O_WALL_KICK_OFFSET: dict[tuple[Direction, Direction], list[tuple[int, int]]] = {
     (Direction.NORTH, Direction.EAST): [(0, 0)],
     (Direction.EAST, Direction.NORTH): [(0, 0)],
     (Direction.EAST, Direction.SOUTH): [(0, 0)],
@@ -91,7 +111,7 @@ O_WALL_KICK_OFFSET = {
     (Direction.NORTH, Direction.WEST): [(0, 0)],
 }
 
-I_WALL_KICK_OFFSET = {
+I_WALL_KICK_OFFSET: dict[tuple[Direction, Direction], list[tuple[int, int]]] = {
     (Direction.NORTH, Direction.EAST): [(0, 0), (0, -2), (0, 1), (1, -2), (-2, 1)],
     (Direction.EAST, Direction.NORTH): [(0, 0), (0, 2), (0, -1), (-1, 2), (2, -1)],
     (Direction.EAST, Direction.SOUTH): [(0, 0), (0, -1), (0, 2), (-2, -1), (1, 2)],
@@ -102,7 +122,14 @@ I_WALL_KICK_OFFSET = {
     (Direction.NORTH, Direction.WEST): [(0, 0), (0, -1), (0, 2), (-2, -1), (1, 2)],
 }
 
-# build the ROTATE_TABLE
+# ---------------------------------------------------------------------------
+# Build the complete ROTATE_TABLE
+# ---------------------------------------------------------------------------
+ROTATE_TABLE: defaultdict[
+    TetriminoShape,
+    dict[tuple[Direction, Direction], dict[str, Any]],
+] = defaultdict(lambda: defaultdict(dict))
+
 for shape in TetriminoShape.normal_tetriminos():
     directions = list(Direction)
     _cw = [
@@ -123,7 +150,9 @@ for shape in TetriminoShape.normal_tetriminos():
         from tetris.utils import rotate_points
 
         rotated = rotate_points(cur_pos, ROTATE_AXIS[shape], ccw)
-        diff = [(rx - x, ry - y) for (rx, ry), (x, y) in list(zip(rotated, cur_pos))]
+        diff: list[tuple[int, int]] = [
+            (rx - x, ry - y) for (rx, ry), (x, y) in list(zip(rotated, cur_pos))
+        ]
         cur_pos = rotated
 
         ROTATE_TABLE[shape][(start, end)]["standard_rotate_diff"] = diff

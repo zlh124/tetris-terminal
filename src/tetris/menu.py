@@ -1,4 +1,4 @@
-"""game menu, mode selection"""
+"""Game menu — mode selection screen."""
 
 from __future__ import annotations
 
@@ -13,31 +13,42 @@ from .utils import clear_win_without_border, draw_win_border, get_version
 
 
 class Menu:
+    """Terminal mode-selection menu.
+
+    Renders a list of game modes inside bordered windows and dispatches
+    to the versus lobby when the player selects multiplayer.
+    """
+
     def __init__(self, stdscr: curses.window, config: Config) -> None:
-        self.stdscr = stdscr
-        self.config = config
+        self._stdscr = stdscr
+        self._config = config
 
         d = config.display
-        self.title_window = curses.newwin(6, d.window_cols)
-        self.sections_window = curses.newwin(d.window_rows - 8, d.window_cols, 6, 0)
-        self.notice_window = curses.newwin(2, d.window_cols, d.window_rows - 2, 0)
+        self._title_window = curses.newwin(6, d.window_cols)
+        self._sections_window = curses.newwin(d.window_rows - 8, d.window_cols, 6, 0)
+        self._notice_window = curses.newwin(2, d.window_cols, d.window_rows - 2, 0)
 
-        self.sections = [str(section) for section in Sections]
-        self.cur_section = 0
-        self.confirm = False
+        self._sections = [str(section) for section in Sections]
+        self._cur_section = 0
+        self._confirm = False
 
-    def versus_lobby(self) -> NetworkClient | None:
+    def _versus_lobby(self) -> NetworkClient | None:
         """Connect to a multiplayer server and wait for an opponent.
 
-        Shows status messages on *stdscr* which should already be cleared.
-        Returns a connected :class:`NetworkClient` on success, or ``None``.
+        Shows status messages on ``self._sections_window``.
+        Blocks until a match is found, the user cancels, or the connection
+        fails.
+
+        Returns:
+            A connected :class:`NetworkClient` on success, or ``None`` on
+            failure / cancellation.
         """
         network = NetworkClient()
-        win = self.sections_window
+        win = self._sections_window
         clear_win_without_border(win)
         host, port = (
-            self.config.multi_play.host,
-            self.config.multi_play.port,
+            self._config.multi_play.host,
+            self._config.multi_play.port,
         )
 
         x, y = win.getmaxyx()
@@ -76,7 +87,7 @@ class Menu:
             dots = (dots + 1) % 4
             win.addstr(7, 1, f"Waiting for opponent{'.' * dots}".center(y))
             win.addstr(9, 1, f"Press 'q' to cancel.".center(y))
-            if self.stdscr.getch() == ord("q"):
+            if self._stdscr.getch() == ord("q"):
                 network.send({"type": WebClientMsgType.LEAVE_QUEUE, "data": {}})
                 network.close()
                 return None
@@ -84,12 +95,13 @@ class Menu:
 
         return network
 
-    def draw_border(self) -> None:
-        title_win = self.title_window
-        sec_win = self.sections_window
-        notice_win = self.notice_window
+    def _draw_border(self) -> None:
+        """Draw borders around the title, sections, and notice windows."""
+        title_win = self._title_window
+        sec_win = self._sections_window
+        notice_win = self._notice_window
 
-        d = self.config.display
+        d = self._config.display
         draw_win_border(title_win, d, bs="", bl=d.bd_v, br=d.bd_v)
         draw_win_border(sec_win, d, tl=d.bd_vr, tr=d.bd_vl, bl=d.bd_vr, br=d.bd_vl)
         draw_win_border(notice_win, d, ts="", tl=d.bd_v, tr=d.bd_v)
@@ -98,9 +110,9 @@ class Menu:
         sec_win.refresh()
         notice_win.refresh()
 
-    def draw_title(self) -> None:
-        """draw title"""
-        window = self.title_window
+    def _draw_title(self) -> None:
+        """Render the ASCII-art "Tetris Terminal" title."""
+        window = self._title_window
         _, width = window.getmaxyx()
         width -= 2
 
@@ -109,20 +121,20 @@ class Menu:
         window.addstr(4, 1, " ╹ ┗━ ╹ ╹┗╸┻╺━┛   ╹ ┗━┛┗━┛╹┗┻┛┗┛ ╹┗╸".center(width))
         window.refresh()
 
-    def draw_sections(self) -> None:
-        """draw sections"""
-        window = self.sections_window
+    def _draw_sections(self) -> None:
+        """Render the mode list, highlighting the currently selected item."""
+        window = self._sections_window
         height, width = window.getmaxyx()
         height -= 2
         width -= 2
 
-        spaces = (height - len(self.sections)) // (len(self.sections) - 1)
+        spaces = (height - len(self._sections)) // (len(self._sections) - 1)
         start_row = (
-            (height - len(self.sections) - spaces * (len(self.sections) - 1)) >> 1
+            (height - len(self._sections) - spaces * (len(self._sections) - 1)) >> 1
         ) + 1
 
-        for i, section in enumerate(self.sections):
-            if i == self.cur_section:
+        for i, section in enumerate(self._sections):
+            if i == self._cur_section:
                 window.addstr(
                     spaces * i + start_row + i,
                     1,
@@ -134,9 +146,9 @@ class Menu:
 
         window.refresh()
 
-    def draw_notice(self) -> None:
-        """draw version"""
-        window = self.notice_window
+    def _draw_notice(self) -> None:
+        """Render the controls hint in the footer."""
+        window = self._notice_window
         _, width = window.getmaxyx()
 
         notice = "tab, ↑, ↓ to select, enter to confirm"
@@ -144,46 +156,61 @@ class Menu:
         window.addstr(0, 1, notice.center(width - 2))
         window.refresh()
 
-    def draw(self) -> None:
-        self.draw_border()
-        self.draw_title()
-        self.draw_sections()
-        self.draw_notice()
+    def _draw(self) -> None:
+        """Redraw the entire menu screen."""
+        self._draw_border()
+        self._draw_title()
+        self._draw_sections()
+        self._draw_notice()
 
-    def handle_input(self) -> None:
-        c = self.stdscr.getch()
+    def _handle_input(self) -> None:
+        """Process a single key-press from the user."""
+        c = self._stdscr.getch()
         if c == ord("\n"):
-            self.confirm = True
+            self._confirm = True
         if c == curses.KEY_UP:
-            self.cur_section = (self.cur_section - 1) % len(self.sections)
+            self._cur_section = (self._cur_section - 1) % len(self._sections)
         if c == curses.KEY_DOWN or c == ord("\t"):
-            self.cur_section = (self.cur_section + 1) % len(self.sections)
+            self._cur_section = (self._cur_section + 1) % len(self._sections)
 
-    def loop(self) -> None | NetworkClient:
-        while not self.confirm:
-            self.handle_input()
-            self.draw()
+    def _loop(self) -> None | NetworkClient:
+        """Main menu loop — handles input, drawing, and versus-mode flow.
 
-        if self.confirm and Sections(self.cur_section) == Sections.VERSUS:
+        Returns:
+            A connected :class:`NetworkClient` when versus mode was selected
+            and a match was found, or ``None`` for single-player modes.
+        """
+        while not self._confirm:
+            self._handle_input()
+            self._draw()
 
-            terminal_height, terminal_width = self.stdscr.getmaxyx()
+        if self._confirm and Sections(self._cur_section) == Sections.VERSUS:
+
+            terminal_height, terminal_width = self._stdscr.getmaxyx()
             if (
-                terminal_height < self.config.display.window_rows
-                or terminal_width < self.config.display.window_cols_versus_mode
+                terminal_height < self._config.display.window_rows
+                or terminal_width < self._config.display.window_cols_versus_mode
             ):
                 raise RuntimeError(
-                    f"verses mode needs {self.config.display.window_rows} rows, "
-                    f"and {self.config.display.window_cols_versus_mode} cols terminal size."
+                    f"verses mode needs {self._config.display.window_rows} rows, "
+                    f"and {self._config.display.window_cols_versus_mode} cols terminal size."
                 )
 
-            network = self.versus_lobby()
+            network = self._versus_lobby()
             if network is None:
-                self.confirm = False
-                clear_win_without_border(self.sections_window)
-                self.loop()
+                self._confirm = False
+                clear_win_without_border(self._sections_window)
+                self._loop()
             return network
 
     def main(self) -> tuple[int, NetworkClient | None]:
-        self.stdscr.timeout(100)
-        network = self.loop()
-        return self.cur_section, network
+        """Run the menu and return the selected section and optional network client.
+
+        Returns:
+            A tuple of ``(section_index, network)`` where *network* is
+            ``None`` for single-player modes or a connected
+            :class:`NetworkClient` for versus mode.
+        """
+        self._stdscr.timeout(100)
+        network = self._loop()
+        return self._cur_section, network

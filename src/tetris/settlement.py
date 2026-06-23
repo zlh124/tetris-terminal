@@ -1,4 +1,4 @@
-"""settlement display ui"""
+"""Settlement (game-over statistics) display UI."""
 
 from __future__ import annotations
 
@@ -9,10 +9,18 @@ from .utils import draw_win_border
 
 
 class SettlementMessage:
-    """game settlement message"""
+    """Container for end-of-game statistics.
+
+    Holds all the counters collected during a game session and formats
+    them into a list of centred lines suitable for terminal display.
+
+    Attributes:
+        title: The settlement title (e.g. ``"GAME OVER"``, ``"YOU WIN!"``).
+    """
 
     def __init__(
         self,
+        title: str,
         score: int,
         lines: int,
         time: str,
@@ -29,48 +37,57 @@ class SettlementMessage:
         game_mode: str = "",
     ) -> None:
         # Summary
-        self.score = score
-        self.lines = lines
-        self.time = time
-        self.game_mode = game_mode
+        self.title = title
+        self._score = score
+        self._lines = lines
+        self._time = time
+        self._game_mode = game_mode
 
         # Line clear counts
-        self.single = single
-        self.double = double
-        self.triple = triple
-        self.tetris = tetris
+        self._single = single
+        self._double = double
+        self._triple = triple
+        self._tetris = tetris
 
         # T-Spin counts
-        self.t_spin = t_spin
-        self.t_spin_single = t_spin_single
-        self.t_spin_double = t_spin_double
-        self.t_spin_triple = t_spin_triple
-        self.mini_t_spin = mini_t_spin
-        self.mini_t_spin_single = mini_t_spin_single
+        self._t_spin = t_spin
+        self._t_spin_single = t_spin_single
+        self._t_spin_double = t_spin_double
+        self._t_spin_triple = t_spin_triple
+        self._mini_t_spin = mini_t_spin
+        self._mini_t_spin_single = mini_t_spin_single
 
     def format(self, width: int) -> list[str]:
+        """Format all statistics into centred lines fitting within *width*.
+
+        Args:
+            width: Available display width in columns.
+
+        Returns:
+            List of centred strings, each no wider than *width*.
+        """
         harfw = width >> 1
-        if self.game_mode:
-            msgs = [f"Mode: {self.game_mode}"]
+        if self._game_mode:
+            msgs = [f"Mode: {self._game_mode}"]
         else:
-            msgs = []
+            msgs: list[str] = []
         msgs += [
-            f"Score: {self.score}",
-            f"Lines: {self.lines}",
-            f"Time: {self.time}",
-            f"Single: {self.single}",
-            f"Double: {self.double}",
-            f"Triple: {self.triple}",
-            f"Tetris: {self.tetris}",
-            f"T-Spin: {self.t_spin}",
-            f"T-Spin Single: {self.t_spin_single}",
-            f"T-Spin Double: {self.t_spin_double}",
-            f"T-Spin Triple: {self.t_spin_triple}",
-            f"Mini-T-Spin: {self.mini_t_spin}",
-            f"Mini-T-Spin Single: {self.mini_t_spin_single}",
+            f"Score: {self._score}",
+            f"Lines: {self._lines}",
+            f"Time: {self._time}",
+            f"Single: {self._single}",
+            f"Double: {self._double}",
+            f"Triple: {self._triple}",
+            f"Tetris: {self._tetris}",
+            f"T-Spin: {self._t_spin}",
+            f"T-Spin Single: {self._t_spin_single}",
+            f"T-Spin Double: {self._t_spin_double}",
+            f"T-Spin Triple: {self._t_spin_triple}",
+            f"Mini-T-Spin: {self._mini_t_spin}",
+            f"Mini-T-Spin Single: {self._mini_t_spin_single}",
         ]
         i = 0
-        res = []
+        res: list[str] = []
         cur_line = ""
         while i < len(msgs):
             if len(cur_line) + harfw > width or len(msgs[i]) > harfw:
@@ -85,24 +102,31 @@ class SettlementMessage:
 
 
 class Settlement:
+    """Game-over statistics screen.
+
+    Renders the :class:`SettlementMessage` inside a bordered window and
+    lets the player choose to retry or quit.
+    """
+
     def __init__(
         self, stdscr: curses.window, set_msg: SettlementMessage, config: Config
     ) -> None:
-        self.stdscr = stdscr
-        self.set_msg = set_msg
-        self.config = config
+        self._stdscr = stdscr
+        self._set_msg = set_msg
+        self._config = config
 
         d = config.display
-        self.title_window = curses.newwin(6, d.window_cols)
-        self.show_window = curses.newwin(d.window_rows - 8, d.window_cols, 6, 0)
-        self.notice_window = curses.newwin(2, d.window_cols, d.window_rows - 2, 0)
+        self._title_window = curses.newwin(6, d.window_cols)
+        self._show_window = curses.newwin(d.window_rows - 8, d.window_cols, 6, 0)
+        self._notice_window = curses.newwin(2, d.window_cols, d.window_rows - 2, 0)
 
-    def draw_border(self) -> None:
-        title_win = self.title_window
-        show_win = self.show_window
-        notice_win = self.notice_window
+    def _draw_border(self) -> None:
+        """Draw the outer borders for all settlement sub-windows."""
+        title_win = self._title_window
+        show_win = self._show_window
+        notice_win = self._notice_window
 
-        d = self.config.display
+        d = self._config.display
         draw_win_border(title_win, d, bs="", bl=d.bd_v, br=d.bd_v)
         draw_win_border(show_win, d, tl=d.bd_vr, tr=d.bd_vl, bl=d.bd_vr, br=d.bd_vl)
         draw_win_border(notice_win, d, ts="", tl=d.bd_v, tr=d.bd_v)
@@ -110,9 +134,9 @@ class Settlement:
         title_win.refresh()
         show_win.refresh()
 
-    def draw_title(self) -> None:
-        """draw title"""
-        window = self.title_window
+    def _draw_title(self) -> None:
+        """Render the "GAME OVER" ASCII-art title."""
+        window = self._title_window
         _, width = window.getmaxyx()
         width -= 2
 
@@ -121,29 +145,27 @@ class Settlement:
         window.addstr(4, 1, "┗━┛╹ ╹╹╹╹┗━   ┗━┛ ┗┛┗━┛┗╸".center(width))
         window.refresh()
 
-    def draw_show(self) -> None:
-        """draw sections"""
-        window = self.show_window
+    def _draw_show(self) -> None:
+        """Render the settlement statistics."""
+        window = self._show_window
         height, width = window.getmaxyx()
         height -= 2
         width -= 2
 
-        messages = self.set_msg.format(width)
+        messages = self._set_msg.format(width)
 
         start_row = (height - len(messages)) >> 1
 
-        if self.set_msg.game_mode == "TIME ATTACK":
-            title = "TIME UP!"
-            window.addstr(start_row - 1, 1, title.center(width))
+        window.addstr(start_row - 1, 1, self._set_msg.title.center(width))
 
         for i, line in enumerate(messages):
             window.addstr(i + start_row + 1, 1, line)
 
         window.refresh()
 
-    def draw_notice(self) -> None:
-        """draw version"""
-        window = self.notice_window
+    def _draw_notice(self) -> None:
+        """Render the footer notice (quit / retry)."""
+        window = self._notice_window
         _, width = window.getmaxyx()
 
         notice = "'q' to quit, 'r' to retry."
@@ -151,21 +173,32 @@ class Settlement:
         window.addstr(0, 1, notice.center(width - 2))
         window.refresh()
 
-    def draw(self) -> None:
-        self.draw_border()
-        self.draw_title()
-        self.draw_show()
-        self.draw_notice()
+    def _draw(self) -> None:
+        """Redraw the entire settlement screen."""
+        self._draw_border()
+        self._draw_title()
+        self._draw_show()
+        self._draw_notice()
 
-    def loop(self) -> int:
+    def _loop(self) -> int:
+        """Input loop for the settlement screen.
+
+        Returns:
+            ``1`` if the player chose to retry, ``0`` to quit.
+        """
         while True:
-            self.draw()
-            c = self.stdscr.getch()
+            self._draw()
+            c = self._stdscr.getch()
             if c == ord("r") or c == ord("R"):
                 return 1
             elif c == ord("q") or c == ord("Q"):
                 return 0
 
     def main(self) -> int:
-        self.stdscr.timeout(-1)
-        return self.loop()
+        """Run the settlement screen.
+
+        Returns:
+            ``1`` if the player chose to retry, ``0`` to quit.
+        """
+        self._stdscr.timeout(-1)
+        return self._loop()

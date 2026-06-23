@@ -6,8 +6,8 @@ import argparse
 import asyncio
 import json
 import logging
-from typing import Optional
 import uuid
+from typing import Optional
 
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -19,32 +19,50 @@ logger = logging.getLogger(__name__)
 
 
 class Player:
-    """Wraps a WebSocket connection with a short human-readable ID."""
+    """Wraps a WebSocket connection with a short human-readable ID.
 
-    def __init__(self, websocket):
-        self.id = str(uuid.uuid4())[:8]
+    Attributes:
+        id: An 8-character UUID prefix.
+        websocket: The underlying WebSocket connection.
+        room: The :class:`Room` this player is currently in (``None`` while
+            waiting).
+    """
+
+    def __init__(self, websocket: websockets.WebSocketServerProtocol) -> None:
+        self.id: str = str(uuid.uuid4())[:8]
         self.websocket = websocket
-        self.room: Optional[Room] = None
+        self.room: Room | None = None
 
     async def send(self, data: dict) -> None:
-        """Send a JSON message to this player."""
+        """Send a JSON-serialisable dict to this player.
+
+        Args:
+            data: The message payload.
+        """
         await self.websocket.send(json.dumps(data))
 
 
 class Room:
-    """Holds two matched players and relays messages between them."""
+    """Holds two matched players and relays messages between them.
+
+    The room runs until one player disconnects, at which point the
+    remaining player is notified and both connections are closed.
+    """
 
     def __init__(
-        self, player_a: Player, player_b: Player, matchmaker: Matchmaker | None = None
-    ):
-        self.players = [player_a, player_b]
+        self,
+        player_a: Player,
+        player_b: Player,
+        matchmaker: Matchmaker | None = None,
+    ) -> None:
+        self.players: list[Player] = [player_a, player_b]
         player_a.room = self
         player_b.room = self
         self._matchmaker = matchmaker
-        self._closed = False
+        self._closed: bool = False
 
     async def run(self) -> None:
-        """Notify both players, start relay tasks, and wait for disconnection."""
+        """Notify both players of the match, then relay messages until a disconnect."""
         for i, player in enumerate(self.players):
             opponent = self.players[1 - i]
             await player.send(
@@ -64,7 +82,12 @@ class Room:
         await self._cleanup()
 
     async def _relay(self, source: Player, target: Player) -> None:
-        """Read messages from source and forward them to target."""
+        """Read messages from *source* and forward them to *target*.
+
+        Args:
+            source: The player whose messages are read.
+            target: The player to whom messages are forwarded.
+        """
         try:
             async for message in source.websocket:
                 if self._closed:
@@ -77,7 +100,7 @@ class Room:
             logger.warning("Invalid JSON from player %s", source.id)
 
     async def _cleanup(self) -> None:
-        """Notify remaining player and close connections."""
+        """Notify the remaining player and close both connections."""
         if self._closed:
             return
         self._closed = True
@@ -97,16 +120,27 @@ class Room:
 
 
 class Matchmaker:
-    """Manages the waiting queue for 1v1 matchmaking."""
+    """Manages the waiting queue for 1v1 matchmaking.
 
-    def __init__(self, max_rooms: int = 0):
+    When a player connects they either pair with the next available
+    waiting player or enter the queue themselves.
+
+    Attributes:
+        _max_rooms: Maximum concurrent rooms (``0`` = unlimited).
+    """
+
+    def __init__(self, max_rooms: int = 0) -> None:
         self._waiting: Player | None = None
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock = asyncio.Lock()
         self._active_rooms: set[Room] = set()
         self._max_rooms = max_rooms  # 0 means unlimited
 
     async def handle(self, player: Player) -> None:
-        """Match this player with a waiting opponent, or queue them."""
+        """Match *player* with a waiting opponent, or queue them.
+
+        Args:
+            player: The newly connected player.
+        """
         async with self._lock:
             # Check if server is at capacity
             if self._max_rooms > 0 and len(self._active_rooms) >= self._max_rooms:
@@ -148,15 +182,30 @@ class Matchmaker:
                     logger.info("Player %s left while waiting", player.id)
 
     def _room_closed(self, room: Room) -> None:
-        """Remove a finished room from the active set."""
+        """Remove a finished room from the active set.
+
+        Args:
+            room: The room that has ended.
+        """
         self._active_rooms.discard(room)
 
 
-async def serve(host: str, port: int, server_version: str, max_rooms: int = 0) -> None:
-    """Start the WebSocket server."""
+async def serve(
+    host: str, port: int, server_version: str, max_rooms: int = 0
+) -> None:
+    """Start the WebSocket matchmaking server.
+
+    Runs forever until a :exc:`KeyboardInterrupt` is received.
+
+    Args:
+        host: Address to bind (e.g. ``"0.0.0.0"``).
+        port: TCP port to listen on.
+        server_version: Expected client version string.
+        max_rooms: Maximum concurrent game rooms (``0`` = unlimited).
+    """
     matchmaker = Matchmaker(max_rooms=max_rooms)
 
-    async def handler(websocket):
+    async def handler(websocket: websockets.WebSocketServerProtocol) -> None:
         # Version handshake
         try:
             raw = await asyncio.wait_for(websocket.recv(), timeout=10)
@@ -164,13 +213,13 @@ async def serve(host: str, port: int, server_version: str, max_rooms: int = 0) -
             logger.warning("Connection timed out waiting for hello")
             return
         try:
-            msg = json.loads(raw)
+            msg: dict = json.loads(raw)
         except json.JSONDecodeError:
             return
 
         if msg.get("type") != WebClientMsgType.HELLO:
             return
-        client_version = msg.get("data", {}).get("version", "")
+        client_version: str = msg.get("data", {}).get("version", "")
         if client_version != server_version:
             await websocket.send(
                 json.dumps(
@@ -209,7 +258,11 @@ async def serve(host: str, port: int, server_version: str, max_rooms: int = 0) -
 
 
 def main() -> int:
-    """CLI entry point for tetris-server."""
+    """CLI entry point for ``tetris-server``.
+
+    Returns:
+        Exit code (``0``).
+    """
     server_version = get_version()
 
     parser = argparse.ArgumentParser(

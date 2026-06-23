@@ -1,11 +1,14 @@
-"""enums"""
+"""Enumerations used throughout tetris-terminal."""
 
 from __future__ import annotations
 
 from enum import IntEnum, StrEnum
+from typing import ClassVar
 
 # fmt: off
 class TetriminoShape(IntEnum):
+    """Tetrimino piece identifier (matches standard Tetris piece numbering)."""
+
     EMPTY   = 0
     Z       = 1
     S       = 2
@@ -18,7 +21,12 @@ class TetriminoShape(IntEnum):
     CLEAR   = 9  # Cells in rows pending line-clear animation
 
     @classmethod
-    def normal_tetriminos(cls):
+    def normal_tetriminos(cls) -> list[TetriminoShape]:
+        """Return the seven standard tetriminos (excluding EMPTY, GARBAGE and CLEAR).
+
+        Returns:
+            List of the seven playable TetriminoShape values.
+        """
         return list(TetriminoShape)[1:-2]
 
     def __repr__(self) -> str:
@@ -26,6 +34,8 @@ class TetriminoShape(IntEnum):
 
 
 class Direction(IntEnum):
+    """Cardinal direction (0-3, clockwise from NORTH)."""
+
     NORTH = 0
     EAST  = 1
     SOUTH = 2
@@ -36,14 +46,15 @@ class Direction(IntEnum):
 
 
 class GameMode(IntEnum):
-    """
-    game mode
+    """Game mode identifiers.
 
-    :0: 150 rows, when lines >= 150, settlement game.
-    :1: casual mode, endless, max level 5
-    :2: endless, max level 15
-    :3: digging mode, max level 5, endless
-    :4: time attack, clear as many lines as possible in 2 minutes
+    Attributes:
+        _150_LINES: 150-row challenge; game ends when lines >= 150.
+        CASUAL: Endless mode with level cap at 5.
+        ENDLESS: Endless mode with level cap at 15.
+        DIGGING: Digging mode with level cap at 5.
+        TIME_ATTACK: Clear as many lines as possible in 2 minutes.
+        VERSUS: 1v1 multiplayer battle.
     """
 
     _150_LINES  = 0
@@ -58,7 +69,7 @@ class GameMode(IntEnum):
 
 
 class Sections(IntEnum):
-    """game mode selection"""
+    """Menu section identifiers."""
 
     _150_LINES  = 0
     CASUAL      = 1
@@ -73,7 +84,7 @@ class Sections(IntEnum):
 
 
 class WebClientMsgType(StrEnum):
-    """web client message type"""
+    """WebSocket message type identifiers used by client-server protocol."""
 
     BOARD                 = "board"
     ERROR                 = "error"
