@@ -76,6 +76,7 @@ class Menu:
                 msg_type = msg.get("type")
                 if msg_type == WebClientMsgType.MATCH_FOUND:
                     network.opponent_id = msg["data"]["opponent_id"]
+                    network.seed = msg["data"].get("seed")
                     break
                 if msg_type == WebClientMsgType.SERVER_FULL:
                     win.addstr(7, 1, "Server is full".center(y))
