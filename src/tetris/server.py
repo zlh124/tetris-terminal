@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import logging
+import random
 import uuid
 from typing import Optional
 
@@ -28,7 +29,7 @@ class Player:
             waiting).
     """
 
-    def __init__(self, websocket: websockets.WebSocketServerProtocol) -> None:
+    def __init__(self, websocket: websockets.ClientConnection) -> None:
         self.id: str = str(uuid.uuid4())[:8]
         self.websocket = websocket
         self.room: Room | None = None
@@ -60,6 +61,7 @@ class Room:
         player_b.room = self
         self._matchmaker = matchmaker
         self._closed: bool = False
+        self._seed: int = random.randint(0, 2**31 - 1)
 
     async def run(self) -> None:
         """Notify both players of the match, then relay messages until a disconnect."""
@@ -68,7 +70,7 @@ class Room:
             await player.send(
                 {
                     "type": WebClientMsgType.MATCH_FOUND,
-                    "data": {"opponent_id": opponent.id},
+                    "data": {"opponent_id": opponent.id, "seed": self._seed},
                 }
             )
 
@@ -190,9 +192,7 @@ class Matchmaker:
         self._active_rooms.discard(room)
 
 
-async def serve(
-    host: str, port: int, server_version: str, max_rooms: int = 0
-) -> None:
+async def serve(host: str, port: int, server_version: str, max_rooms: int = 0) -> None:
     """Start the WebSocket matchmaking server.
 
     Runs forever until a :exc:`KeyboardInterrupt` is received.
@@ -205,7 +205,7 @@ async def serve(
     """
     matchmaker = Matchmaker(max_rooms=max_rooms)
 
-    async def handler(websocket: websockets.WebSocketServerProtocol) -> None:
+    async def handler(websocket: websockets.ClientConnection) -> None:
         # Version handshake
         try:
             raw = await asyncio.wait_for(websocket.recv(), timeout=10)

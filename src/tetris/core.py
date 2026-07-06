@@ -100,17 +100,9 @@ class TetrisCore:
         MOVE = 0
         ROTATE = 1
 
-    @property
-    def _fall_speed(self) -> float:
-        """Current normal-fall interval in seconds.
-
-        Calculated from the standard Tetris guideline formula.
-
-        Returns:
-            Seconds per normal-fall step.
-        """
-        return (0.8 - ((self.level - 1) * 0.007)) ** (self.level - 1)
-
+    # ======================================================================
+    # properties
+    # ======================================================================
     @property
     def game_time(self) -> float:
         """Elapsed game time in seconds (pauses excluded).
@@ -159,7 +151,23 @@ class TetrisCore:
         return f"{minutes:02d}:{seconds:02d}:{milliseconds:02d}"
 
     @property
+    def _fall_speed(self) -> float:
+        """Current normal-fall interval in seconds.
+
+        Calculated from the standard Tetris guideline formula.
+
+        Returns:
+            Seconds per normal-fall step.
+        """
+        return (0.8 - ((self.level - 1) * 0.007)) ** (self.level - 1)
+
+    @property
     def _digging_mode_line_increment_time(self) -> float:
+        """The time that digging mode increase one line
+
+        Returns:
+            the time
+        """
         if self.lines <= 50:
             return 5
         elif self.lines <= 100:
@@ -179,6 +187,7 @@ class TetrisCore:
         config: Config,
         lock_down_callback: Callable[[int], Any],
         game_over_callback: Callable[[str, SettlementMessage], Any],
+        seed: int | None = None,
     ) -> None:
         """Initialise the game core.
 
@@ -189,11 +198,14 @@ class TetrisCore:
                 every lock-down so the UI can relay data to the network.
             game_over_callback: Called with ``(title, settlement)`` when
                 the game ends.
+            seed: Optional random seed for deterministic piece sequences
+                (used by versus mode).
         """
         self._game_mode = game_mode
         self._config = config
         self._lock_down_callback = lock_down_callback
         self._game_over_callback = game_over_callback
+        self._seed: int | None = seed
 
         # Multiplayer
         self.garbage_queue = 0  # pending garbage line count
@@ -297,6 +309,30 @@ class TetrisCore:
             raise RuntimeError("cur_tetrimino is None")
         return max(x for x, _ in self.cur_tetrimino)
 
+    def _get_current_settlement(self) -> SettlementMessage:
+        """Build a :class:`SettlementMessage` from current counters.
+
+        Returns:
+            A populated settlement message.
+        """
+        return SettlementMessage(
+            "",
+            self.score,
+            self.lines,
+            self.game_time_str,
+            self._single,
+            self._double,
+            self._triple,
+            self._tetris,
+            self._t_spin,
+            self._t_spin_single,
+            self._t_spin_double,
+            self._t_spin_triple,
+            self._mini_t_spin,
+            self._mini_t_spin_single,
+            game_mode=str(self._game_mode),
+        )
+
     def _generate_new_tetrimino(self) -> None:
         """Spawn the next piece.
 
@@ -307,7 +343,7 @@ class TetrisCore:
         if any(self.board[x][y] != TetriminoShape.EMPTY for x, y in self.cur_tetrimino):
             self._game_over_callback("game over!", self._get_current_settlement())
             return
-        self._do_move_down()
+        self._move_down()
 
     def _line_clear(self) -> int:
         """Remove all fully-filled rows after a lock-down.
@@ -428,7 +464,7 @@ class TetrisCore:
         """
         return all(self._check_point_empty(point) for point in points)
 
-    def _do_rotate(self, cur_direction: Direction, next_direction: Direction) -> None:
+    def _rotate(self, cur_direction: Direction, next_direction: Direction) -> None:
         """Rotate the current piece using SRS wall-kick offsets.
 
         Tries each offset from the rotation table in order; the first
@@ -458,8 +494,8 @@ class TetrisCore:
 
         for i, (dx, dy) in enumerate(offsets):
             tmp = rotated[::]
-            for i, (x, y) in enumerate(rotated):
-                tmp[i] = x + dx, y + dy
+            for j, (x, y) in enumerate(rotated):
+                tmp[j] = x + dx, y + dy
 
             if self._check_points_empty(tmp):
                 self.cur_tetrimino.bodies = tmp
@@ -476,7 +512,7 @@ class TetrisCore:
 
                 return
 
-    def _do_move_down(self) -> bool:
+    def _move_down(self) -> bool:
         """Move the current piece down one row.
 
         Returns:
@@ -490,28 +526,6 @@ class TetrisCore:
         for i, (x, y) in enumerate(self.cur_tetrimino):
             self.cur_tetrimino[i] = (x + 1, y)
         return True
-
-    def _normal_fall(self, dt: float) -> None:
-        """Progress normal gravity fall by *dt* seconds.
-
-        Invokes ``_do_move_down()`` when the accumulated time exceeds
-        :attr:`_fall_speed`.
-
-        Args:
-            dt: Delta time in seconds.
-        """
-        self._normal_fall_timer += dt
-        if self._normal_fall_timer < self._fall_speed:
-            return
-        self._normal_fall_timer = 0
-        if self._do_move_down():
-            self._last_move = self.Movement.MOVE
-
-            # reset lock down timer and counter
-            if self._get_current_lowest() > self._lowest:
-                self._lock_down_timer = 0
-                self._lowest = self._get_current_lowest()
-            self._lock_down_move_counter = 0
 
     def _set_notice(self, notice: str) -> None:
         """Set the on-screen action notice and reset its display timer."""
@@ -610,7 +624,7 @@ class TetrisCore:
         network sync.
         """
         cleared_lines = self._line_clear()
-        was_b2b = self._calculate_score(self._pending_t_spin, cleared_lines)
+        was_b2b = self._calc_score(self._pending_t_spin, cleared_lines)
 
         # Multiplayer garbage offset mechanism
         outgoing = self._calc_garbage_lines(
@@ -628,99 +642,7 @@ class TetrisCore:
         self._build_notice(self._pending_t_spin, cleared_lines, was_b2b)
         self._pending_t_spin = 0
 
-    def _calc_garbage_lines(
-        self, is_t_spin: int, cleared_lines: int, was_b2b: bool
-    ) -> int:
-        """Calculate garbage lines to send to the opponent.
-
-        Args:
-            is_t_spin: ``1`` (T-Spin), ``2`` (Mini T-Spin), or ``0``.
-            cleared_lines: Number of lines cleared.
-            was_b2b: Whether a back-to-back bonus was active.
-
-        Returns:
-            Number of garbage lines to send.
-        """
-        lines = 0
-        if is_t_spin == 1:  # T-Spin
-            if cleared_lines == 1:
-                lines = 2
-            elif cleared_lines == 2:
-                lines = 4
-            elif cleared_lines == 3:
-                lines = 6
-        elif is_t_spin == 2:  # Mini T-Spin — no garbage
-            lines = 0
-        else:  # Normal clear
-            if cleared_lines == 2:
-                lines = 1
-            elif cleared_lines == 3:
-                lines = 2
-            elif cleared_lines == 4:
-                lines = 4
-        if lines > 0 and was_b2b:
-            lines += 1
-        return lines
-
-    def _apply_incoming_garbage(self) -> None:
-        """Inject pending garbage lines from the queue into the board.
-
-        Each garbage row is pushed from the bottom, shifting everything up.
-        Every group of 8 lines shares the same random hole column.
-        """
-        width = self._config.game_rules.board_width
-        count = self.garbage_queue
-        self.garbage_queue = 0
-
-        col = 0
-        for i in range(count):
-            if i % 8 == 0:
-                col = random.randint(0, width - 1)
-            self.board.pop(0)
-            new_line = [TetriminoShape.GARBAGE] * width
-            new_line[col] = TetriminoShape.EMPTY
-            self.board.append(new_line)
-
-    def _handle_line_clear_anim(self, delta: float) -> None:
-        """Progress the line-clear animation by *delta* seconds.
-
-        When the animation duration is exceeded, starts the actual
-        line-clear processing.
-
-        Args:
-            delta: Delta time in seconds.
-        """
-        if self._clear_anim_played >= self._config.timing.clear_anim_duration:
-            self._clear_anim_played = 0
-            self._animating = False
-            self._finish_lock_down()
-        self._clear_anim_played += delta
-
-    def _get_current_settlement(self) -> SettlementMessage:
-        """Build a :class:`SettlementMessage` from current counters.
-
-        Returns:
-            A populated settlement message.
-        """
-        return SettlementMessage(
-            "",
-            self.score,
-            self.lines,
-            self.game_time_str,
-            self._single,
-            self._double,
-            self._triple,
-            self._tetris,
-            self._t_spin,
-            self._t_spin_single,
-            self._t_spin_double,
-            self._t_spin_triple,
-            self._mini_t_spin,
-            self._mini_t_spin_single,
-            game_mode=str(self._game_mode),
-        )
-
-    def _calculate_score(self, is_t_spin: int, cleared_lines: int) -> bool:
+    def _calc_score(self, is_t_spin: int, cleared_lines: int) -> bool:
         """Update score, lines, and level counters after a lock-down.
 
         Follows the modern Tetris scoring table with back-to-back
@@ -829,6 +751,59 @@ class TetrisCore:
 
         return bonus
 
+    def _calc_garbage_lines(
+        self, is_t_spin: int, cleared_lines: int, was_b2b: bool
+    ) -> int:
+        """Calculate garbage lines to send to the opponent.
+
+        Args:
+            is_t_spin: ``1`` (T-Spin), ``2`` (Mini T-Spin), or ``0``.
+            cleared_lines: Number of lines cleared.
+            was_b2b: Whether a back-to-back bonus was active.
+
+        Returns:
+            Number of garbage lines to send.
+        """
+        lines = 0
+        if is_t_spin == 1:  # T-Spin
+            if cleared_lines == 1:
+                lines = 2
+            elif cleared_lines == 2:
+                lines = 4
+            elif cleared_lines == 3:
+                lines = 6
+        elif is_t_spin == 2:  # Mini T-Spin — no garbage
+            lines = 0
+        else:  # Normal clear
+            if cleared_lines == 2:
+                lines = 1
+            elif cleared_lines == 3:
+                lines = 2
+            elif cleared_lines == 4:
+                lines = 4
+        if lines > 0 and was_b2b:
+            lines += 1
+        return lines
+
+    def _apply_incoming_garbage(self) -> None:
+        """Inject pending garbage lines from the queue into the board.
+
+        Each garbage row is pushed from the bottom, shifting everything up.
+        Every group of 8 lines shares the same random hole column.
+        """
+        width = self._config.game_rules.board_width
+        count = self.garbage_queue
+        self.garbage_queue = 0
+
+        col = 0
+        for i in range(count):
+            if i % 8 == 0:
+                col = random.randint(0, width - 1)
+            self.board.pop(0)
+            new_line = [TetriminoShape.GARBAGE] * width
+            new_line[col] = TetriminoShape.EMPTY
+            self.board.append(new_line)
+
     def _build_notice(self, is_t_spin: int, cleared_lines: int, was_b2b: bool) -> None:
         """Build and show the lock-down action notice.
 
@@ -869,19 +844,56 @@ class TetrisCore:
                 notice += " B2B!"
             self._set_notice(notice)
 
-    def _handle_lock_down(self, dt: float) -> None:
+    def _handle_normal_fall(self, delta: float) -> None:
+        """Progress normal gravity fall by *delta* seconds.
+
+        Invokes ``_move_down()`` when the accumulated time exceeds
+        :attr:`_fall_speed`.
+
+        Args:
+            delta: Delta time in seconds.
+        """
+        self._normal_fall_timer += delta
+        if self._normal_fall_timer < self._fall_speed:
+            return
+        self._normal_fall_timer = 0
+        if self._move_down():
+            self._last_move = self.Movement.MOVE
+
+            # reset lock down timer and counter
+            if self._get_current_lowest() > self._lowest:
+                self._lock_down_timer = 0
+                self._lowest = self._get_current_lowest()
+            self._lock_down_move_counter = 0
+
+    def _handle_line_clear_anim(self, delta: float) -> None:
+        """Progress the line-clear animation by *delta* seconds.
+
+        When the animation duration is exceeded, starts the actual
+        line-clear processing.
+
+        Args:
+            delta: Delta time in seconds.
+        """
+        if self._clear_anim_played >= self._config.timing.clear_anim_duration:
+            self._clear_anim_played = 0
+            self._animating = False
+            self._finish_lock_down()
+        self._clear_anim_played += delta
+
+    def _handle_lock_down(self, delta: float) -> None:
         """Progress the lock-down timer.
 
         When the piece can no longer move down, the lock-down timer runs;
         after 0.5 seconds the piece locks.
 
         Args:
-            dt: Delta time in seconds.
+            delta: Delta time in seconds.
         """
         if self._check_can_move_down():
             return
         # reset when move and rotate successfully
-        self._lock_down_timer += dt
+        self._lock_down_timer += delta
 
         if self._lock_down_timer >= 0.5:
             self._lock_down()
@@ -909,16 +921,16 @@ class TetrisCore:
                 x, y = self.shadow[i]
                 self.shadow[i] = x + 1, y
 
-    def _handle_digging_mode(self, dt: float) -> None:
+    def _handle_digging_mode(self, delta: float) -> None:
         """Automatically add garbage rows in Digging mode.
 
         Adds one garbage line every 10 seconds when the game mode is
         ``GameMode.DIGGING``.
 
         Args:
-            dt: Delta time in seconds.
+            delta: Delta time in seconds.
         """
-        self._line_increment_timer += dt
+        self._line_increment_timer += delta
 
         if (
             self._game_mode != GameMode.DIGGING
@@ -933,12 +945,18 @@ class TetrisCore:
     def _init_game(self) -> None:
         """Initialise bag, timers, and first piece.
 
-        Also adds 10 initial garbage rows for Digging mode to simulate
-        a partially filled board.
+        If a seed was provided, the random number generator is seeded
+        before bag initialisation so both versus-mode players get
+        identical piece sequences.
         """
+        if self._seed is not None:
+            random.seed(self._seed)
         self._init_bag()
         self._generate_new_tetrimino()
 
+    # ======================================================================
+    # interfaces
+    # ======================================================================
     def process(self, time_delta: float) -> None:
         """Advance game state by *time_delta* seconds.
 
@@ -954,7 +972,7 @@ class TetrisCore:
             self._handle_line_clear_anim(time_delta)
         else:
             self._handle_digging_mode(time_delta)
-            self._normal_fall(time_delta)
+            self._handle_normal_fall(time_delta)
             self._handle_lock_down(time_delta)
 
         self._handle_shadow()
@@ -1019,7 +1037,7 @@ class TetrisCore:
         next_direction = directions[
             (directions.index(cur_direction) + 1) % len(directions)
         ]
-        self._do_rotate(cur_direction, next_direction)
+        self._rotate(cur_direction, next_direction)
 
     def do_rotate_ccw(self) -> None:
         """Rotate the current piece counter-clockwise (SRS)."""
@@ -1030,16 +1048,7 @@ class TetrisCore:
         next_direction = directions[
             (len(directions) + (directions.index(cur_direction) - 1)) % len(directions)
         ]
-        self._do_rotate(cur_direction, next_direction)
-
-    def add_garbage_lines(self, count: int) -> None:
-        """Queue incoming garbage lines from the opponent.
-
-        Args:
-            count: Number of garbage lines to add.
-        """
-        self._set_notice(f"Garbage +{count}!")
-        self.garbage_queue += count
+        self._rotate(cur_direction, next_direction)
 
     def do_soft_drop(self) -> None:
         """Perform one soft-drop step.
@@ -1048,7 +1057,7 @@ class TetrisCore:
         """
         # cancel normal fall
         self._normal_fall_timer = 0
-        if self._do_move_down():
+        if self._move_down():
             # soft drop get level score
             self.score += self.level
             self._last_move = self.Movement.MOVE
@@ -1065,7 +1074,7 @@ class TetrisCore:
         Awards 2 × level × rows_dropped score for each row the piece
         falls before locking.
         """
-        while self._do_move_down():
+        while self._move_down():
             # hard drop get 2 * level * lines score
             self.score += self.level * 2
         self._lock_down()
@@ -1084,11 +1093,22 @@ class TetrisCore:
             self.board[x][y] = TetriminoShape.EMPTY
         if self.hold is None:
             self.hold = self.cur_tetrimino
-            self._generate_new_tetrimino()
         else:
             self.bag.appendleft(Tetrimino(self.hold.shape))
             self.hold = self.cur_tetrimino
-            self._generate_new_tetrimino()
+
+        self._lock_down_move_counter = 0
+        self._lock_down_timer = 0
+        self._generate_new_tetrimino()
+
+    def add_garbage_lines(self, count: int) -> None:
+        """Queue incoming garbage lines from the opponent.
+
+        Args:
+            count: Number of garbage lines to add.
+        """
+        self._set_notice(f"Garbage +{count}!")
+        self.garbage_queue += count
 
     def get_notice(self) -> str:
         """Return the current action notice string.

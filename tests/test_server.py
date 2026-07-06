@@ -2,12 +2,14 @@
 
 import asyncio
 import json
+import logging
 from typing import Union
 
 import pytest
 import websockets
 
 from tetris.enums import WebClientMsgType
+from tetris.server import main as server_main
 from tetris.utils import get_version
 
 # ---------------------------------------------------------------------------
@@ -89,7 +91,8 @@ class TestMatchmaking:
     """Tests for the 1v1 matchmaking queue."""
 
     async def test_two_players_match(self, server: int) -> None:
-        """Two connecting players should be paired and receive each other's ID."""
+        """Two connecting players should be paired, receive each other's ID,
+        and share the same random seed."""
         ws1, id1 = await _connect(server)
         ws2, id2 = await _connect(server)
 
@@ -98,19 +101,34 @@ class TestMatchmaking:
 
         assert msg1["type"] == WebClientMsgType.MATCH_FOUND
         assert msg1["data"]["opponent_id"] == id2
+        assert "seed" in msg1["data"]
+        assert isinstance(msg1["data"]["seed"], int)
+
         assert msg2["type"] == WebClientMsgType.MATCH_FOUND
         assert msg2["data"]["opponent_id"] == id1
 
+        # Both players must get the same seed
+        assert msg1["data"]["seed"] == msg2["data"]["seed"]
+
     async def test_concurrent_rooms(self, server: int) -> None:
-        """Four players should form two independent rooms."""
+        """Four players should form two independent rooms with different seeds."""
         ws1, _ = await _connect(server)
         ws2, _ = await _connect(server)
         ws3, _ = await _connect(server)
         ws4, _ = await _connect(server)
 
+        msgs: list[dict] = []
         for ws in (ws1, ws2, ws3, ws4):
             msg = await _recv_json(ws)
             assert msg["type"] == WebClientMsgType.MATCH_FOUND
+            msgs.append(msg)
+
+        # First room: ws1 and ws2 share seed
+        assert msgs[0]["data"]["seed"] == msgs[1]["data"]["seed"]
+        # Second room: ws3 and ws4 share seed
+        assert msgs[2]["data"]["seed"] == msgs[3]["data"]["seed"]
+        # Different rooms have (probably) different seeds
+        assert msgs[0]["data"]["seed"] != msgs[2]["data"]["seed"]
 
     async def test_server_full_rejects(self, server_full: int) -> None:
         """The third player should be rejected when max_rooms=1."""
@@ -210,3 +228,139 @@ class TestMessageRelay:
         )
         msg = await _recv_json(ws2)
         assert msg == {"type": WebClientMsgType.GARBAGE, "data": {"lines": 3}}
+
+
+# ---------------------------------------------------------------------------
+# Handshake validation
+# ---------------------------------------------------------------------------
+
+
+class TestHandshakeValidation:
+    """Tests for malformed first messages being rejected silently."""
+
+    async def test_non_hello_first_message_closes(self, server: int) -> None:
+        """A first message that is not ``HELLO`` closes the connection."""
+        ws = await websockets.connect(f"ws://127.0.0.1:{server}")
+        await ws.send(
+            json.dumps({"type": WebClientMsgType.GARBAGE, "data": {}})
+        )
+        with pytest.raises(websockets.ConnectionClosed):
+            await asyncio.wait_for(ws.recv(), timeout=2.0)
+
+    async def test_invalid_json_first_message_closes(self, server: int) -> None:
+        """A first message that is not valid JSON closes the connection."""
+        ws = await websockets.connect(f"ws://127.0.0.1:{server}")
+        await ws.send("not-json{")
+        with pytest.raises(websockets.ConnectionClosed):
+            await asyncio.wait_for(ws.recv(), timeout=2.0)
+
+
+# ---------------------------------------------------------------------------
+# Disconnect handling
+# ---------------------------------------------------------------------------
+
+
+class TestDisconnect:
+    """Tests for room cleanup when a player disconnects mid-match."""
+
+    async def test_opponent_disconnected_relayed(self, server: int) -> None:
+        """The surviving player is notified when their opponent disconnects."""
+        ws1, _ = await _connect(server)
+        ws2, _ = await _connect(server)
+        await _recv_raw(ws1)  # MATCH_FOUND
+        await _recv_raw(ws2)  # MATCH_FOUND
+
+        await ws1.close()
+        msg = await _recv_json(ws2)
+        assert msg["type"] == WebClientMsgType.OPPONENT_DISCONNECTED
+
+
+# ---------------------------------------------------------------------------
+# Relay edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestRelayValidation:
+    """Tests for malformed messages during in-room relay."""
+
+    async def test_invalid_json_during_relay_is_logged(
+        self, server: int
+    ) -> None:
+        """Invalid JSON from a player is logged and not forwarded."""
+        ws1, _ = await _connect(server)
+        ws2, _ = await _connect(server)
+        await _recv_raw(ws1)  # MATCH_FOUND
+        await _recv_raw(ws2)  # MATCH_FOUND
+
+        records: list[logging.LogRecord] = []
+
+        class _ListHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                records.append(record)
+
+        srv_logger = logging.getLogger("tetris.server")
+        handler = _ListHandler(level=logging.WARNING)
+        srv_logger.addHandler(handler)
+        try:
+            await ws1.send("not-json{")
+            await asyncio.sleep(0.3)  # let the relay process it
+        finally:
+            srv_logger.removeHandler(handler)
+
+        assert any("Invalid JSON" in r.getMessage() for r in records)
+        # The malformed payload is not forwarded. The relay's JSONDecodeError
+        # handler is at the try-level (not per-message), so one bad message
+        # aborts the relay, ending the room — the opponent is then notified
+        # via OPPONENT_DISCONNECTED rather than receiving the garbage.
+        msg = await _recv_json(ws2, timeout=1.0)
+        assert msg["type"] == WebClientMsgType.OPPONENT_DISCONNECTED
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+class TestServerCLI:
+    """Tests for the ``tetris-server`` CLI argument parsing."""
+
+    def test_main_parses_args_and_invokes_serve(self, monkeypatch) -> None:
+        captured: dict = {}
+
+        async def fake_serve(host, port, version, max_rooms=0) -> None:
+            captured.update(
+                host=host, port=port, version=version, max_rooms=max_rooms
+            )
+
+        monkeypatch.setattr("tetris.server.serve", fake_serve)
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "tetris-server",
+                "--host",
+                "1.2.3.4",
+                "--port",
+                "9999",
+                "--max-rooms",
+                "3",
+            ],
+        )
+        assert server_main() == 0
+        assert captured["host"] == "1.2.3.4"
+        assert captured["port"] == 9999
+        assert captured["max_rooms"] == 3
+
+    def test_main_defaults(self, monkeypatch) -> None:
+        captured: dict = {}
+
+        async def fake_serve(host, port, version, max_rooms=0) -> None:
+            captured.update(
+                host=host, port=port, version=version, max_rooms=max_rooms
+            )
+
+        monkeypatch.setattr("tetris.server.serve", fake_serve)
+        monkeypatch.setattr("sys.argv", ["tetris-server"])
+        assert server_main() == 0
+        assert captured["host"] == "0.0.0.0"
+        assert captured["port"] == 8765
+        assert captured["max_rooms"] == 0

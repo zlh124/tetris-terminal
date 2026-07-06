@@ -30,6 +30,7 @@ class NetworkClient:
         self._ws: ClientConnection | None = None
         self.player_id: str = ""
         self.opponent_id: str = ""
+        self.seed: int | None = None
 
     @property
     def connected(self) -> bool:
@@ -72,6 +73,7 @@ class NetworkClient:
             msg: dict[str, Any] = json.loads(self._ws.recv())
             if msg.get("type") == WebClientMsgType.MATCH_FOUND:
                 self.opponent_id = msg["data"]["opponent_id"]
+                self.seed = msg["data"]["seed"]
                 return self.opponent_id
             if msg.get("type") == WebClientMsgType.SERVER_FULL:
                 raise RuntimeError("Server is full")

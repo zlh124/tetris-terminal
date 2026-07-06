@@ -50,8 +50,9 @@ class Tetris:
         config: Config,
         network: NetworkClient | None = None,
     ) -> None:
+        seed = network.seed if network else None
         self._core = TetrisCore(
-            game_mode, config, self._do_lock_down, self._do_game_over
+            game_mode, config, self._do_lock_down, self._do_game_over, seed=seed
         )
 
         self._stdscr = stdscr
