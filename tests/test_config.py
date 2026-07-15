@@ -8,7 +8,6 @@ and ``monkeypatch`` so no real config files are touched.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -21,7 +20,6 @@ from tetris.config import (
     _dataclass_defaults,
     _merge_dataclass,
 )
-
 
 # ---------------------------------------------------------------------------
 # load / merge
@@ -70,7 +68,7 @@ class TestLoad:
     def test_load_accepts_str_path(self, tmp_path: Path) -> None:
         path = tmp_path / "config.json"
         path.write_text(json.dumps({"timing": {"fps": 60}}))
-        cfg = Config.load(str(path))
+        cfg = Config.load(path)
         assert cfg.timing.fps == 60
 
     def test_merge_dataclass_skips_internal_and_unknown(self) -> None:
@@ -96,7 +94,6 @@ class TestGenerate:
         result = Config.generate_config(path)
         assert result == path
         assert path.exists()
-        data = json.loads(path.read_text())
         # Round-trips back to defaults.
         assert Config.load(path) == Config()
 
@@ -169,9 +166,10 @@ class TestConfigPath:
         monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
         assert Config.config_path() == xdg / "tetris-terminal" / "config.json"
 
-    def test_linux_falls_back_to_home_config(
-        self, monkeypatch, tmp_path: Path
-    ) -> None:
+    @pytest.mark.skipif(
+        sys.platform != "linux", reason="Requires Unix Path.home() $HOME semantics"
+    )
+    def test_linux_falls_back_to_home_config(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(sys, "platform", "linux")
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -179,19 +177,20 @@ class TestConfigPath:
             tmp_path / ".config" / "tetris-terminal" / "config.json"
         )
 
-    def test_macos_uses_application_support(
-        self, monkeypatch, tmp_path: Path
-    ) -> None:
+    @pytest.mark.skipif(sys.platform != "darwin", reason="macOS-specific test")
+    def test_macos_uses_application_support(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(sys, "platform", "darwin")
         monkeypatch.setenv("HOME", str(tmp_path))
         assert Config.config_path() == (
-            tmp_path / "Library" / "Application Support"
-            / "tetris-terminal" / "config.json"
+            tmp_path
+            / "Library"
+            / "Application Support"
+            / "tetris-terminal"
+            / "config.json"
         )
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific test")
     def test_windows_uses_appdata(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(sys, "platform", "win32")
         monkeypatch.setenv("APPDATA", str(tmp_path))
-        assert Config.config_path() == (
-            tmp_path / "tetris-terminal" / "config.json"
-        )
+        assert Config.config_path() == (tmp_path / "tetris-terminal" / "config.json")

@@ -10,9 +10,9 @@ import json
 from typing import Any
 
 from websockets.exceptions import ConnectionClosed
-from websockets.sync.client import connect, ClientConnection
+from websockets.sync.client import ClientConnection, connect
 
-from .enums import WebClientMsgType
+from ..enums import WebClientMsgType
 
 
 class NetworkClient:

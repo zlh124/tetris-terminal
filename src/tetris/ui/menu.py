@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import curses
 
-
-from .config import Config
-from .enums import Sections, WebClientMsgType
-from .logger import logger
-from .network import NetworkClient
-from .utils import clear_win_without_border, draw_win_border, get_version
+from ..config import Config
+from ..enums import Sections, WebClientMsgType
+from ..logger import logger
+from ..multiplay.network import NetworkClient
+from ..utils import clear_win_without_border, draw_win_border, get_version
 
 
 class Menu:
@@ -62,7 +61,7 @@ class Menu:
             network.handshake(host, port, get_version())
         except (OSError, RuntimeError) as e:
             logger.error(f"Connection failed: {e!r}")
-            win.addstr(7, 1, f"Failed to connect.".center(y))
+            win.addstr(7, 1, "Failed to connect.".center(y))
             win.addstr(9, 1, "Press any key to return...".center(y))
             win.refresh()
             win.getch()
@@ -87,7 +86,7 @@ class Menu:
                     return None
             dots = (dots + 1) % 4
             win.addstr(7, 1, f"Waiting for opponent{'.' * dots}".center(y))
-            win.addstr(9, 1, f"Press 'q' to cancel.".center(y))
+            win.addstr(9, 1, "Press 'q' to cancel.".center(y))
             if self._stdscr.getch() == ord("q"):
                 network.send({"type": WebClientMsgType.LEAVE_QUEUE, "data": {}})
                 network.close()
@@ -186,7 +185,6 @@ class Menu:
             self._draw()
 
         if self._confirm and Sections(self._cur_section) == Sections.VERSUS:
-
             terminal_height, terminal_width = self._stdscr.getmaxyx()
             if (
                 terminal_height < self._config.display.window_rows

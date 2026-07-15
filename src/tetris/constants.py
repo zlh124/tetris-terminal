@@ -6,8 +6,8 @@ offsets, and generation positions used by the game core.
 
 from __future__ import annotations
 
-from collections import defaultdict
 import curses
+from collections import defaultdict
 from typing import Any
 
 from .enums import Direction, TetriminoShape
@@ -44,7 +44,7 @@ SHAPE_TABLE: dict[TetriminoShape, list[tuple[int, int]]] = {
 # Standard rotation axis (row, col), from the first cell of the shape table.
 # The I and O pieces use a double-axis midpoint.
 # ---------------------------------------------------------------------------
-ROTATE_AXIS: dict[TetriminoShape, list[int | tuple[int, int]]] = {
+ROTATE_AXIS: dict[TetriminoShape, list[int] | list[tuple[int, int]]] = {
     TetriminoShape.I: [(0, 1), (1, 2)],
     TetriminoShape.J: [1, 1],
     TetriminoShape.L: [0, 1],
@@ -130,6 +130,44 @@ ROTATE_TABLE: defaultdict[
     dict[tuple[Direction, Direction], dict[str, Any]],
 ] = defaultdict(lambda: defaultdict(dict))
 
+
+def rotate_points(
+    points: list[tuple[int, int]],
+    center: list[int] | list[tuple[int, int]],
+    ccw: bool = False,
+) -> list[tuple[int, int]]:
+    """Rotate a list of (row, col) points by 90 degrees around a center.
+
+    Args:
+        points: The points to rotate, each as ``(row, col)``.
+        center: Either ``[row, col]`` or ``[(row0, row1), (col0, col1)]``
+            for an averaged center (used by I-piece double-axis rotation).
+        ccw: If ``True``, rotate counter-clockwise; otherwise clockwise.
+
+    Returns:
+        New list of rotated ``(row, col)`` tuples.
+    """
+    if isinstance(center[0], (list, tuple)):
+        cr = (center[0][0] + center[0][1]) / 2.0
+        cc = (center[1][0] + center[1][1]) / 2.0  # type: ignore[index]
+    else:
+        cr, cc = float(center[0]), float(center[1])  # type: ignore[index]
+
+    rotated_points: list[tuple[int, int]] = []
+
+    for r, c in points:
+        rel_r = r - cr
+        rel_c = c - cc
+        new_rel_r = -rel_c if ccw else rel_c
+        new_rel_c = rel_r if ccw else -rel_r
+        new_r = int(new_rel_r + cr)
+        new_c = int(new_rel_c + cc)
+
+        rotated_points.append((new_r, new_c))
+
+    return rotated_points
+
+
 for shape in TetriminoShape.normal_tetriminos():
     directions = list(Direction)
     _cw = [
@@ -147,8 +185,6 @@ for shape in TetriminoShape.normal_tetriminos():
 
     cur_pos = SHAPE_TABLE[shape][::]
     for start, end, ccw in _cw + _ccw:
-        from tetris.utils import rotate_points
-
         rotated = rotate_points(cur_pos, ROTATE_AXIS[shape], ccw)
         diff: list[tuple[int, int]] = [
             (rx - x, ry - y) for (rx, ry), (x, y) in list(zip(rotated, cur_pos))

@@ -7,7 +7,7 @@ from typing import AsyncGenerator
 
 import pytest_asyncio
 
-from tetris.server import serve
+from tetris.multiplay.server import serve
 from tetris.utils import get_version
 
 

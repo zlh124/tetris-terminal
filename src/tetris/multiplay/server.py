@@ -8,13 +8,12 @@ import json
 import logging
 import random
 import uuid
-from typing import Optional
 
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from .enums import WebClientMsgType
-from .utils import get_version
+from ..enums import WebClientMsgType
+from ..utils import get_version
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class Player:
             waiting).
     """
 
-    def __init__(self, websocket: websockets.ClientConnection) -> None:
+    def __init__(self, websocket: websockets.ServerConnection) -> None:
         self.id: str = str(uuid.uuid4())[:8]
         self.websocket = websocket
         self.room: Room | None = None
@@ -205,7 +204,7 @@ async def serve(host: str, port: int, server_version: str, max_rooms: int = 0) -
     """
     matchmaker = Matchmaker(max_rooms=max_rooms)
 
-    async def handler(websocket: websockets.ClientConnection) -> None:
+    async def handler(websocket: websockets.ServerConnection) -> None:
         # Version handshake
         try:
             raw = await asyncio.wait_for(websocket.recv(), timeout=10)

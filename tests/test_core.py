@@ -17,13 +17,14 @@ deterministic. No third-party dependencies are introduced.
 
 from __future__ import annotations
 
+from copy import copy
 from datetime import datetime, timedelta
 
 import pytest
 
 import tetris.core
 from tetris.config import Config
-from tetris.core import TetrisCore, Tetrimino
+from tetris.core import Tetrimino, TetrisCore
 from tetris.enums import Direction, GameMode, TetriminoShape
 
 # Board geometry (matches Config defaults).
@@ -66,7 +67,7 @@ def set_current(
     Used for method-level isolation tests (rotation, collision, T-Spin).
     """
     t = Tetrimino(shape)
-    t.bodies = [tuple(b) for b in bodies]
+    t.bodies = copy(bodies)
     t.direction = direction
     core.cur_tetrimino = t
 
@@ -130,6 +131,7 @@ class TestBag:
         six pieces still in the bag.
         """
         core = make_core(seed=1)
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         drawn = [core.cur_tetrimino.shape] + [
             core.bag.popleft().shape for _ in range(6)
         ]
@@ -154,25 +156,21 @@ class TestBag:
         resetting the shared RNG.
         """
         a = make_core(seed=42)
-        seq_a = [a.cur_tetrimino.shape] + [
-            a._get_tetrimino().shape for _ in range(20)
-        ]
+        assert a.cur_tetrimino, "cur_tetrimino is None"
+        seq_a = [a.cur_tetrimino.shape] + [a._get_tetrimino().shape for _ in range(20)]
         b = make_core(seed=42)
-        seq_b = [b.cur_tetrimino.shape] + [
-            b._get_tetrimino().shape for _ in range(20)
-        ]
+        assert b.cur_tetrimino, "cur_tetrimino is None"
+        seq_b = [b.cur_tetrimino.shape] + [b._get_tetrimino().shape for _ in range(20)]
         assert seq_a == seq_b
 
     def test_different_seed_different_sequence(self) -> None:
         """Different seeds (almost surely) produce different sequences."""
         a = make_core(seed=1)
-        seq_a = [a.cur_tetrimino.shape] + [
-            a._get_tetrimino().shape for _ in range(20)
-        ]
+        assert a.cur_tetrimino, "cur_tetrimino is None"
+        seq_a = [a.cur_tetrimino.shape] + [a._get_tetrimino().shape for _ in range(20)]
         b = make_core(seed=2)
-        seq_b = [b.cur_tetrimino.shape] + [
-            b._get_tetrimino().shape for _ in range(20)
-        ]
+        assert b.cur_tetrimino, "cur_tetrimino is None"
+        seq_b = [b.cur_tetrimino.shape] + [b._get_tetrimino().shape for _ in range(20)]
         assert seq_a != seq_b
 
 
@@ -186,12 +184,14 @@ class TestMovement:
 
     def test_move_left_succeeds(self) -> None:
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         set_current(core, TetriminoShape.T, [(25, 4), (25, 5), (24, 5), (25, 6)])
         assert core.do_move_left() is True
         assert core.cur_tetrimino.bodies == [(25, 3), (25, 4), (24, 4), (25, 5)]
 
     def test_move_right_succeeds(self) -> None:
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         set_current(core, TetriminoShape.T, [(25, 4), (25, 5), (24, 5), (25, 6)])
         assert core.do_move_right() is True
         assert core.cur_tetrimino.bodies == [(25, 5), (25, 6), (24, 6), (25, 7)]
@@ -216,20 +216,17 @@ class TestMovement:
         """Once the move counter hits the cap, sideways moves are refused."""
         core = make_core()
         set_current(core, TetriminoShape.O, [(38, 4), (38, 5), (39, 4), (39, 5)])
-        core._lock_down_move_counter = (
-            core._config.game_rules.max_lock_down_move_count
-        )
+        core._lock_down_move_counter = core._config.game_rules.max_lock_down_move_count
         assert core.do_move_left() is False
         assert core.do_move_right() is False
 
     def test_lock_down_move_counter_caps_rotation(self) -> None:
         """Once the move counter hits the cap, rotation is a no-op."""
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         set_current(core, TetriminoShape.T, [(25, 4), (25, 5), (24, 5), (25, 6)])
         before = core.cur_tetrimino.direction
-        core._lock_down_move_counter = (
-            core._config.game_rules.max_lock_down_move_count
-        )
+        core._lock_down_move_counter = core._config.game_rules.max_lock_down_move_count
         core.do_rotate_cw()
         assert core.cur_tetrimino.direction == before
 
@@ -244,6 +241,7 @@ class TestRotation:
 
     def test_rotate_cw_changes_direction(self) -> None:
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         set_current(
             core,
             TetriminoShape.T,
@@ -262,6 +260,7 @@ class TestRotation:
 
     def test_rotate_ccw_changes_direction(self) -> None:
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         set_current(
             core,
             TetriminoShape.T,
@@ -274,6 +273,7 @@ class TestRotation:
     def test_o_piece_rotation_is_positional_noop(self) -> None:
         """The O piece occupies the same cells after rotation (just reordered)."""
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         set_current(
             core,
             TetriminoShape.O,
@@ -308,6 +308,7 @@ class TestRotation:
         shifting the piece one column left.
         """
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         set_current(
             core,
             TetriminoShape.T,
@@ -337,6 +338,7 @@ class TestFallLock:
 
     def test_soft_drop_awards_score_and_moves_down(self) -> None:
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         set_current(core, TetriminoShape.T, [(25, 4), (25, 5), (24, 5), (25, 6)])
         core.do_soft_drop()
         assert core.score == core.level  # 1 × level per cell
@@ -783,10 +785,10 @@ class TestHold:
     def test_hold_swap_returns_previous(self) -> None:
         """Holding again puts the previously-held piece back into play."""
         core = make_core()
+        assert core.cur_tetrimino, "cur_tetrimino is None"
         first = core.cur_tetrimino
         core.do_hold()  # hold = first
         # Force the spawned replacement so we can identify it, then hold again.
-        second = core.cur_tetrimino
         core.do_hard_drop()  # lock the second; resets _hold_once via _lock_down
         third = core.cur_tetrimino
         core.do_hold()  # swap: third → hold, first → back into play

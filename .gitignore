@@ -11,6 +11,7 @@ wheels/
 
 # ide folders
 .vscode
+.idea
 
 private/
 
@@ -23,3 +24,6 @@ AGENTS.md
 # pytest
 .pytest_cache/
 .coverage
+
+# tools
+.ruff_cache/

@@ -10,14 +10,13 @@ from __future__ import annotations
 import curses
 import time
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .network import NetworkClient
+    from ..multiplay.network import NetworkClient
 
-from .config import Config
-from .constants import (
+from ..config import Config
+from ..constants import (
     EXIT,
     HARD_DROP,
     HOLD,
@@ -30,10 +29,10 @@ from .constants import (
     SHOW_OFFSET,
     SOFT_DROP,
 )
-from .enums import GameMode, TetriminoShape, WebClientMsgType
-from .settlement import SettlementMessage
-from .utils import draw_win_border, clear_win_without_border
-from .core import TetrisCore
+from ..enums import GameMode, TetriminoShape, WebClientMsgType
+from ..settlement_message import SettlementMessage
+from ..utils import draw_win_border, clear_win_without_border
+from ..core import TetrisCore
 
 
 class Tetris:
