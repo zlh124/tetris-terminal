@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from tetris.settlement import SettlementMessage
+from tetris.ui.settlement import SettlementMessage
 
 
 def make_msg(game_mode: str = "") -> SettlementMessage:

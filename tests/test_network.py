@@ -12,14 +12,15 @@ from __future__ import annotations
 import json
 
 import pytest
+from websockets import Close
 from websockets.exceptions import ConnectionClosed
+from websockets.sync.client import ClientConnection
 
-import tetris.network
 from tetris.enums import WebClientMsgType
-from tetris.network import NetworkClient
+from tetris.multiplay.network import NetworkClient
 
 
-class FakeWS:
+class FakeWS(ClientConnection):
     """A minimal stand-in for ``websockets.sync.client.ClientConnection``."""
 
     def __init__(self, incoming=None, send_raises=None, recv_raises=None):
@@ -50,7 +51,7 @@ def _msg(d: dict) -> str:
 
 
 def _client_with(fake: FakeWS, monkeypatch) -> NetworkClient:
-    monkeypatch.setattr("tetris.network.connect", lambda url: fake)
+    monkeypatch.setattr("tetris.multiplay.network.connect", lambda url: fake)
     return NetworkClient()
 
 
@@ -118,9 +119,7 @@ class TestWaitForMatch:
     def test_returns_opponent_id(self, monkeypatch) -> None:
         fake = FakeWS(
             incoming=[
-                _msg(
-                    {"type": WebClientMsgType.HELLO_OK, "data": {"your_id": "a"}}
-                ),
+                _msg({"type": WebClientMsgType.HELLO_OK, "data": {"your_id": "a"}}),
                 _msg(
                     {
                         "type": WebClientMsgType.MATCH_FOUND,
@@ -175,7 +174,7 @@ class TestSend:
         client.send({"type": WebClientMsgType.GARBAGE, "data": {"lines": 3}})
 
     def test_connection_closed_clears_ws(self) -> None:
-        fake = FakeWS(send_raises=ConnectionClosed(1006, None))
+        fake = FakeWS(send_raises=ConnectionClosed(Close(1006, ""), None))
         client = NetworkClient()
         client._ws = fake
         client.send({"type": WebClientMsgType.GARBAGE, "data": {"lines": 3}})
@@ -220,7 +219,7 @@ class TestRecv:
         assert client.recv(timeout=0) is None
 
     def test_connection_closed_clears_ws(self) -> None:
-        fake = FakeWS(recv_raises=ConnectionClosed(1006, None))
+        fake = FakeWS(recv_raises=ConnectionClosed(Close(1006, ""), None))
         client = NetworkClient()
         client._ws = fake
         assert client.recv(timeout=0) is None
@@ -263,9 +262,7 @@ class TestConnected:
         # _handshake_ok builds its own client; rebuild to inspect the same fake
         fake2 = FakeWS(
             incoming=[
-                _msg(
-                    {"type": WebClientMsgType.HELLO_OK, "data": {"your_id": "x"}}
-                )
+                _msg({"type": WebClientMsgType.HELLO_OK, "data": {"your_id": "x"}})
             ]
         )
         client = _client_with(fake2, monkeypatch)

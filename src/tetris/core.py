@@ -9,12 +9,10 @@ from __future__ import annotations
 
 import random
 import time
-
 from collections import deque
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Generator
-
 
 from .config import Config
 from .constants import (
@@ -23,7 +21,7 @@ from .constants import (
     SHAPE_TABLE,
 )
 from .enums import Direction, GameMode, TetriminoShape
-from .settlement import SettlementMessage
+from .settlement_message import SettlementMessage
 
 
 class Tetrimino:
@@ -65,33 +63,33 @@ class TetrisCore:
     Call the methods below from the control / UI layer:
 
     **Lifecycle**
-    ``process(time_delta)`` — advance game state by *dt* seconds
-    ``controllable()`` — whether input should be dispatched
-    ``toggle_pause()`` — pause / resume
+    - ``process(time_delta)`` — advance game state by *dt* seconds
+    - ``controllable()`` — whether input should be dispatched
+    - ``toggle_pause()`` — pause / resume
 
     **Movement**
-    ``do_move_left()`` / ``do_move_right()``
-    ``do_rotate_cw()`` / ``do_rotate_ccw()``
-    ``do_soft_drop()`` / ``do_hard_drop()``
-    ``do_hold()``
+    - ``do_move_left()`` / ``do_move_right()``
+    - ``do_rotate_cw()`` / ``do_rotate_ccw()``
+    - ``do_soft_drop()`` / ``do_hard_drop()``
+    - ``do_hold()``
 
     **Multiplayer**
-    ``add_garbage_lines(count)`` — queue incoming garbage
-    ``serialize_board()`` — export board for network sync
+    - ``add_garbage_lines(count)`` — queue incoming garbage
+    - ``serialize_board()`` — export board for network sync
 
     **Status**
-    ``get_notice()`` — current action label (e.g. "Tetris!")
-    ``forced_game_over(title)`` — end the game immediately
+    - ``get_notice()`` — current action label (e.g. "Tetris!")
+    - ``forced_game_over(title)`` — end the game immediately
 
     **Callbacks**
-    ``lock_down_callback(garbage_lines)`` — called after each lock-down
-    ``game_over_callback(title, settlement)`` — called when the game ends
+    - ``lock_down_callback(garbage_lines)`` — called after each lock-down
+    - ``game_over_callback(title, settlement)`` — called when the game ends
 
     **Properties**
-    ``game_time``, ``game_time_str``, ``time_remaining``,
-    ``cur_tetrimino``, ``board``, ``bag``, ``hold``,
-    ``frame_timer``, ``score``, ``lines``, ``level``,
-    ``shadow``, ``garbage_queue``, ``paused``.
+    - ``game_time``, ``game_time_str``, ``time_remaining``,
+    - ``cur_tetrimino``, ``board``, ``bag``, ``hold``,
+    - ``frame_timer``, ``score``, ``lines``, ``level``,
+    - ``shadow``, ``garbage_queue``, ``paused``.
     """
 
     class Movement(Enum):
@@ -942,6 +940,12 @@ class TetrisCore:
         # add one line in the garbage
         self.garbage_queue += 1
 
+    def _init_digging_mode(self) -> None:
+        """Initialise the garbage queue for Digging mode."""
+        for _ in range(4):
+            self.garbage_queue += 2
+            self._apply_incoming_garbage()
+
     def _init_game(self) -> None:
         """Initialise bag, timers, and first piece.
 
@@ -951,6 +955,8 @@ class TetrisCore:
         """
         if self._seed is not None:
             random.seed(self._seed)
+        if self._game_mode == GameMode.DIGGING:
+            self._init_digging_mode()
         self._init_bag()
         self._generate_new_tetrimino()
 

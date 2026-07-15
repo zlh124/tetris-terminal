@@ -20,8 +20,8 @@ import time
 from tetris.config import Config
 from tetris.core import TetrisCore
 from tetris.enums import GameMode
-from tetris.network import NetworkClient
-from tetris.server import serve
+from tetris.multiplay.network import NetworkClient
+from tetris.multiplay.server import serve
 from tetris.utils import get_version
 
 
@@ -88,9 +88,8 @@ def _draw_sequence(seed: int, n: int = 20) -> list:
         lambda title, msg: None,
         seed=seed,
     )
-    return [core.cur_tetrimino.shape] + [
-        core._get_tetrimino().shape for _ in range(n)
-    ]
+    assert core.cur_tetrimino, "cur_tetrimino is None"
+    return [core.cur_tetrimino.shape] + [core._get_tetrimino().shape for _ in range(n)]
 
 
 def test_matched_clients_share_seed_and_bag_sequence() -> None:

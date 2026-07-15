@@ -9,7 +9,7 @@ import pytest
 import websockets
 
 from tetris.enums import WebClientMsgType
-from tetris.server import main as server_main
+from tetris.multiplay.server import main as server_main
 from tetris.utils import get_version
 
 # ---------------------------------------------------------------------------
@@ -241,9 +241,7 @@ class TestHandshakeValidation:
     async def test_non_hello_first_message_closes(self, server: int) -> None:
         """A first message that is not ``HELLO`` closes the connection."""
         ws = await websockets.connect(f"ws://127.0.0.1:{server}")
-        await ws.send(
-            json.dumps({"type": WebClientMsgType.GARBAGE, "data": {}})
-        )
+        await ws.send(json.dumps({"type": WebClientMsgType.GARBAGE, "data": {}}))
         with pytest.raises(websockets.ConnectionClosed):
             await asyncio.wait_for(ws.recv(), timeout=2.0)
 
@@ -283,9 +281,7 @@ class TestDisconnect:
 class TestRelayValidation:
     """Tests for malformed messages during in-room relay."""
 
-    async def test_invalid_json_during_relay_is_logged(
-        self, server: int
-    ) -> None:
+    async def test_invalid_json_during_relay_is_logged(self, server: int) -> None:
         """Invalid JSON from a player is logged and not forwarded."""
         ws1, _ = await _connect(server)
         ws2, _ = await _connect(server)
@@ -298,7 +294,7 @@ class TestRelayValidation:
             def emit(self, record: logging.LogRecord) -> None:
                 records.append(record)
 
-        srv_logger = logging.getLogger("tetris.server")
+        srv_logger = logging.getLogger("tetris.mulitplay.server")
         handler = _ListHandler(level=logging.WARNING)
         srv_logger.addHandler(handler)
         try:
@@ -328,11 +324,9 @@ class TestServerCLI:
         captured: dict = {}
 
         async def fake_serve(host, port, version, max_rooms=0) -> None:
-            captured.update(
-                host=host, port=port, version=version, max_rooms=max_rooms
-            )
+            captured.update(host=host, port=port, version=version, max_rooms=max_rooms)
 
-        monkeypatch.setattr("tetris.server.serve", fake_serve)
+        monkeypatch.setattr("tetris.multiplay.server.serve", fake_serve)
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -354,11 +348,9 @@ class TestServerCLI:
         captured: dict = {}
 
         async def fake_serve(host, port, version, max_rooms=0) -> None:
-            captured.update(
-                host=host, port=port, version=version, max_rooms=max_rooms
-            )
+            captured.update(host=host, port=port, version=version, max_rooms=max_rooms)
 
-        monkeypatch.setattr("tetris.server.serve", fake_serve)
+        monkeypatch.setattr("tetris.multiplay.server.serve", fake_serve)
         monkeypatch.setattr("sys.argv", ["tetris-server"])
         assert server_main() == 0
         assert captured["host"] == "0.0.0.0"

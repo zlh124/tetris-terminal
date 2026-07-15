@@ -39,7 +39,7 @@ homepage = "https://github.com/zlh124/tetris-terminal"
 
 [project.scripts]
 tetris = "tetris.cli:main"
-tetris-server = "tetris.server:main"
+tetris-server = "tetris.multiplay.server:main"
 
 [project.optional-dependencies]
 dev = [

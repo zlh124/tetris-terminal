@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from dataclasses import MISSING, Field, dataclass, field, fields
+from dataclasses import MISSING, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -48,7 +48,9 @@ class DisplayConfig:
     bd_hb: str = "┬"
     bd_ht: str = "┴"
 
-    _internal: frozenset[str] = frozenset({"window_rows", "window_cols", "window_cols_versus_mode"})
+    _internal: frozenset[str] = frozenset(
+        {"window_rows", "window_cols", "window_cols_versus_mode"}
+    )
 
 
 @dataclass

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from enum import IntEnum, StrEnum
-from typing import ClassVar
 
 # fmt: off
 class TetriminoShape(IntEnum):
@@ -12,10 +11,10 @@ class TetriminoShape(IntEnum):
     EMPTY   = 0
     Z       = 1
     S       = 2
-    O       = 3
+    O       = 3  # noqa: E741
     J       = 4
     T       = 5
-    I       = 6
+    I       = 6  # noqa: E741
     L       = 7
     GARBAGE = 8  # Garbage Tetrimino
     CLEAR   = 9  # Cells in rows pending line-clear animation
@@ -27,7 +26,7 @@ class TetriminoShape(IntEnum):
         Returns:
             List of the seven playable TetriminoShape values.
         """
-        return list(TetriminoShape)[1:-2]
+        return list(TetriminoShape)[1:8]
 
     def __repr__(self) -> str:
         return f"TetriminoShape.{self.name}"
@@ -36,10 +35,10 @@ class TetriminoShape(IntEnum):
 class Direction(IntEnum):
     """Cardinal direction (0-3, clockwise from NORTH)."""
 
-    NORTH = 0
-    EAST  = 1
-    SOUTH = 2
-    WEST  = 3
+    NORTH = 0b0001
+    EAST  = 0b0010
+    SOUTH = 0b0100
+    WEST  = 0b1000
 
     def __repr__(self) -> str:
         return f"Direction.{self.name}"
