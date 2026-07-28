@@ -10,7 +10,7 @@ from __future__ import annotations
 import curses
 import time
 
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..multiplay.network import NetworkClient
@@ -254,7 +254,7 @@ class Tetris:
                     s_row + x + dx,
                     s_col + (y + dy) * 2,
                     self._config.display.solid_cell,
-                    self._get_color(shape),
+                    self._get_color(None if self._core.hold_once else shape),
                 )
 
         window.noutrefresh()
@@ -469,7 +469,7 @@ class Tetris:
             )
         curses.init_pair(TetriminoShape.CLEAR.value, curses.COLOR_WHITE, -1)
 
-    def _get_color(self, shape: TetriminoShape) -> int:
+    def _get_color(self, shape: Optional[TetriminoShape]) -> int:
         """Return the curses colour attribute for a given shape.
 
         Args:
@@ -488,7 +488,7 @@ class Tetris:
             else:
                 return curses.A_REVERSE
 
-        if shape != TetriminoShape.GARBAGE:
+        if shape and shape != TetriminoShape.GARBAGE:
             return curses.color_pair(shape.value)
         return 0
 

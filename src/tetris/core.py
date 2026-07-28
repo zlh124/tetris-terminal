@@ -87,7 +87,7 @@ class TetrisCore:
 
     **Properties**
     - ``game_time``, ``game_time_str``, ``time_remaining``,
-    - ``cur_tetrimino``, ``board``, ``bag``, ``hold``,
+    - ``cur_tetrimino``, ``board``, ``bag``, ``hold``, ``hold_once``
     - ``frame_timer``, ``score``, ``lines``, ``level``,
     - ``shadow``, ``garbage_queue``, ``paused``.
     """
@@ -237,7 +237,7 @@ class TetrisCore:
         # Piece state
         self.cur_tetrimino = None
         self.hold = None
-        self._hold_once = False
+        self.hold_once = False
 
         # Timers
         self.frame_timer = 0.0
@@ -607,7 +607,7 @@ class TetrisCore:
         # reset lock down
         self._lock_down_timer = 0
         self._lock_down_move_counter = 0
-        self._hold_once = False
+        self.hold_once = False
 
         if has_clear:
             self._animating = True
@@ -734,12 +734,15 @@ class TetrisCore:
             return False
 
         # level up
-        # max level 15
-        if (
-            self.level < 15
-            and self._lines_for_level >= 5 * self.level * (self.level + 1) / 2
-        ):
+        if self._lines_for_level >= 5 * self.level * (self.level + 1) / 2:
             self.level += 1
+
+        # endless max level 30
+        self.level = 30
+
+        # max level 15
+        if self._game_mode != GameMode.ENDLESS:
+            self.level = 15
 
         # if casual or digging mode, max level is 5
         if (
@@ -1090,11 +1093,11 @@ class TetrisCore:
 
         Can only be used once per lock-down cycle.
         """
-        if self._hold_once:
+        if self.hold_once:
             return
         if self.cur_tetrimino is None:
             raise RuntimeError("cur_tetrimino is None")
-        self._hold_once = True
+        self.hold_once = True
         for x, y in self.cur_tetrimino:
             self.board[x][y] = TetriminoShape.EMPTY
         if self.hold is None:
