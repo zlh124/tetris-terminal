@@ -738,10 +738,11 @@ class TetrisCore:
             self.level += 1
 
         # endless max level 30
-        self.level = 30
+        if self.level > 30:
+            self.level = 30
 
         # max level 15
-        if self._game_mode != GameMode.ENDLESS:
+        if self._game_mode != GameMode.ENDLESS and self.level > 15:
             self.level = 15
 
         # if casual or digging mode, max level is 5
