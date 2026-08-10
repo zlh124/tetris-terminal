@@ -1,33 +1,5 @@
-   `![gameplay](./gameplay.gif)  `
-   `[English](README.md) | [中文](README-cn.md)` | [Spanish](README.es-ES.md)
-   `# Tetris Terminal🎮`
-   `Un juego de Tetris basado en terminal escrito en Python utilizando la librería `curses`.`
-   `[![License: MIT]...](LICENSE)`
-   `[![Python 3.10+]...]() `
-   `### Funcionalidades`
-   `- Diseño moderno de Tetris siguiendo la [Guía de Diseño de Tetris](https://dn720004.ca.archive.org/0/items/2009-tetris-variant-concepts_202201/2009%20Tetris%20Design%20Guideline.pdf)`
-   `- [x] Colocación extendida`
-   `- [x] Vista previa de la siguiente pieza`
-   `- [x] Sistema SRS`
-   `- [x] Almacenamiento de piezas`
-   `- [x] Pieza sombra`
-   `- [x] Sistema de puntuación moderno`
-   `- [x] Sistema de niveles moderno`
-   `### Compatibilidad con plataformas`
-   `Basado en el módulo [`curses`](https://docs.python.org/3/library/curses.html) de Python:`
-   `- ✅ **Linux/macOS**: Funciona sin configuración adicional`
-   `- ✅️ **Windows**: Con [`windows-curses`](https://github.com/zephyrproject-rtos/windows-curses)`
-   `- Puede ejecutarse en prácticamente cualquier configuración de terminal, incluso en una TTY de Linux.`
-   `### Instalación y uso`
-   `...`
-   All matches. Output matches request.✅
-   Proceeds. 
-   [Output Generation] -> *Proceeds* (Note: I will output only the translated README as requested.) 
-   *(Done.)*
-</think>
-
 ![gameplay](./gameplay.gif)  
-[English](README.md) | [中文](README-cn.md)
+[English](README.md) | [中文](README-cn.md) | [Spanish](README.es-ES.md)
 
 # Tetris Terminal🎮
 
