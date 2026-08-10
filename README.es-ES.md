@@ -1,12 +1,5 @@
-*(Note: I will carefully paste the translated text exactly as structured, preserving all markdown, code blocks, links, images, and identifiers.)* 
-   `![gameplay](./gameplay.gif)  \n[English](README.md) | [中文](README-cn.md)\n\n# Tetris Terminal🎮\n\nUn juego de Tetris basado en terminal escrito en Python utilizando la librería `curses`.\n\n...` (matches exactly)
-   All good. 
-   Output matches the final translated text. 
-   [Done] 
-   *Self-Correction/Note during generation prep*: I'll make sure the spacing and newlines exactly match the prompt's structure. I will translate accurately while keeping technical terms intact where appropriate. The prompt says "Preserve Markdown, code blocks, commands, identifiers, image targets, and link targets exactly." I will strictly follow this.
-   Final check of the text:
    `![gameplay](./gameplay.gif)  `
-   `[English](README.md) | [中文](README-cn.md)`
+   `[English](README.md) | [中文](README-cn.md)` | [Spanish](README.es-ES.md)
    `# Tetris Terminal🎮`
    `Un juego de Tetris basado en terminal escrito en Python utilizando la librería `curses`.`
    `[![License: MIT]...](LICENSE)`
