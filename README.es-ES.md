@@ -36,25 +36,25 @@ tetris
 
 ### Controles
 
-| Tecla          | Acción     |
-| -------------- | ---------- |
-| `a`, `←`       | Mover a  |
-| `d`, `→`       | Mover derecha|
-| `w`, `↑`,`x`   | Rotar cw   |
-| `z`            | Rotar ccw  |
-| `s`, `↓`       | Caída suave|
-| `space`        | Caída instantánea|
-| `c`            | Guardar   |
-| `p`            | Pausar     |
-| `q`            | Salir del juego|
+| Tecla        | Acción            |
+| ------------ | ----------------- |
+| `a`, `←`     | Mover a           |
+| `d`, `→`     | Mover derecha     |
+| `w`, `↑`,`x` | Rotar cw          |
+| `z`          | Rotar ccw         |
+| `s`, `↓`     | Caída suave       |
+| `space`      | Caída instantánea |
+| `c`          | Guardar           |
+| `p`          | Pausar            |
+| `q`          | Salir del juego   |
 
 ### Opciones de CLI
 
-| Opción              | Descripción                                       |
-| ------------------- | ------------------------------------------------- |
-| `--generate-config` | Generar un archivo de configuración predeterminado y salir           |
+| Opción              | Descripción                                                                |
+| ------------------- | -------------------------------------------------------------------------- |
+| `--generate-config` | Generar un archivo de configuración predeterminado y salir                 |
 | `--disable-config`  | Ignorar el archivo de configuración y ejecutar con valores predeterminados |
-| `--version`         | Mostrar versión y salir                             |
+| `--version`         | Mostrar versión y salir                                                    |
 
 ### Multijugador (Modo versus)
 
@@ -99,27 +99,27 @@ Una vez que ambos clientes se conectan, el servidor los empareja y comienza la b
 
 #### CLI
 
-| Comando                     | Descripción                            |
-| --------------------------- | -------------------------------------- |
+| Comando                     | Descripción                                     |
+| --------------------------- | ----------------------------------------------- |
 | `tetris-server`             | Iniciar el servidor de emparejamiento WebSocket |
-| `tetris`                    | Lanzar el juego en modo de un jugador |
-| `tetris --server HOST:PORT` | Lanzar el juego en modo multijugador    |
+| `tetris`                    | Lanzar el juego en modo de un jugador           |
+| `tetris --server HOST:PORT` | Lanzar el juego en modo multijugador            |
 
 #### Opciones de `tetris-server`
 
-| Opción      | Predeterminado | Descripción           |
-| ----------- | --------- | --------------------- |
-| `--host`    | `0.0.0.0` | Dirección del host para enlazar  |
-| `--port`    | `8765`    | Puerto para escuchar     |
-| `--version` |           | Mostrar versión y salir |
+| Opción      | Predeterminado | Descripción                     |
+| ----------- | -------------- | ------------------------------- |
+| `--host`    | `0.0.0.0`      | Dirección del host para enlazar |
+| `--port`    | `8765`         | Puerto para escuchar            |
+| `--version` |                | Mostrar versión y salir         |
 
 #### Opciones de `tetris --server`
 
-| Opción               | Descripción                                                 |
-| -------------------- | ----------------------------------------------------------- |
-| `--server HOST:PORT` | Conectar a un servidor multijugador (predeterminado: `localhost:8765`) |
-| `--disable-config`   | Ignorar el archivo de configuración y ejecutar con valores predeterminados           |
-| `--version`          | Mostrar versión y salir                                       |
+| Opción               | Descripción                                                                |
+| -------------------- | -------------------------------------------------------------------------- |
+| `--server HOST:PORT` | Conectar a un servidor multijugador (predeterminado: `localhost:8765`)     |
+| `--disable-config`   | Ignorar el archivo de configuración y ejecutar con valores predeterminados |
+| `--version`          | Mostrar versión y salir                                                    |
 
 #### Jugabilidad
 
@@ -135,10 +135,10 @@ Una vez que ambos clientes se conectan, el servidor los empareja y comienza la b
 
 Configuración de conexión para el modo multijugador.
 
-| Clave    | Predeterminado    | Descripción           |
-| -------- | ------------- | --------------------- |
-| `host` | `"localhost"` | Nombre o IP del servidor |
-| `port` | `8765`        | Puerto del servidor           |
+| Clave  | Predeterminado | Descripción              |
+| ------ | -------------- | ------------------------ |
+| `host` | `"localhost"`  | Nombre o IP del servidor |
+| `port` | `8765`         | Puerto del servidor      |
 
 ---
 
@@ -147,10 +147,10 @@ Configuración de conexión para el modo multijugador.
 Al primer inicio, o mediante `tetris --generate-config`, se crea un archivo de configuración en:
 
 | Plataforma | Ruta                                                        |
-| -------- | ----------------------------------------------------------- |
-| Linux    | `~/.config/tetris-terminal/config.json`                     |
-| macOS    | `~/Library/Application Support/tetris-terminal/config.json` |
-| Windows  | `%APPDATA%/tetris-terminal/config.json`                     |
+| ---------- | ----------------------------------------------------------- |
+| Linux      | `~/.config/tetris-terminal/config.json`                     |
+| macOS      | `~/Library/Application Support/tetris-terminal/config.json` |
+| Windows    | `%APPDATA%/tetris-terminal/config.json`                     |
 
 El archivo de configuración hace referencia a un [JSON Schema](config-schema.json) para la autocompletación y validación en editores. Todos los campos son opcionales; las claves que falten usarán sus valores predeterminados.
 
@@ -158,40 +158,40 @@ El archivo de configuración hace referencia a un [JSON Schema](config-schema.js
 
 Apariencia visual del tablero de juego.
 
-| Clave           | Predeterminado | Descripción            |
-| ------------- | ------- | ---------------------- |
-| `empty_cell`  | `"  "`  | Carácter de celda vacía   |
-| `solid_cell`  | `"██"`  | Carácter de celda sólida  |
-| `shadow_cell` | `"░░"`  | Carácter de la pieza sombra |
-| `bd_v`        | `"│"`   | Borde vertical        |
-| `bd_h`        | `"─"`   | Borde horizontal      |
-| `bd_tl`       | `"╭"`   | Borde superior-izquierdo        |
-| `bd_tr`       | `"╮"`   | Borde superior-derecho        |
-| `bd_bl`       | `"╰"`   | Borde inferior-izquierdo    |
-| `bd_br`       | `"╯"`   | Borde inferior-derecho    |
-| `bd_vr`       | `"├"`   | Borde T-derecha         |
-| `bd_vl`       | `"┤"`   | Borde T-izquierda          |
-| `bd_hb`       | `"┬"`   | Borde T-inferior        |
-| `bd_ht`       | `"┴"`   | Borde T-superior           |
+| Clave         | Predeterminado | Descripción                 |
+| ------------- | -------------- | --------------------------- |
+| `empty_cell`  | `"  "`         | Carácter de celda vacía     |
+| `solid_cell`  | `"██"`         | Carácter de celda sólida    |
+| `shadow_cell` | `"░░"`         | Carácter de la pieza sombra |
+| `bd_v`        | `"│"`          | Borde vertical              |
+| `bd_h`        | `"─"`          | Borde horizontal            |
+| `bd_tl`       | `"╭"`          | Borde superior-izquierdo    |
+| `bd_tr`       | `"╮"`          | Borde superior-derecho      |
+| `bd_bl`       | `"╰"`          | Borde inferior-izquierdo    |
+| `bd_br`       | `"╯"`          | Borde inferior-derecho      |
+| `bd_vr`       | `"├"`          | Borde T-derecha             |
+| `bd_vl`       | `"┤"`          | Borde T-izquierda           |
+| `bd_hb`       | `"┬"`          | Borde T-inferior            |
+| `bd_ht`       | `"┴"`          | Borde T-superior            |
 
 #### timing
 
 Configuración de velocidad de fotogramas y animaciones.
 
-| Clave                         | Predeterminado | Descripción                             |
-| --------------------------- | ------- | --------------------------------------- |
-| `fps`                       | `30`    | Fotogramas por segundo                       |
-| `clear_anim_flash_interval` | `0.05`  | Intervalo de parpadeo al limpiar líneas (segundos)     |
-| `clear_anim_duration`       | `0.3`   | Duración de la animación de limpieza de líneas (segundos) |
+| Clave                       | Predeterminado | Descripción                                               |
+| --------------------------- | -------------- | --------------------------------------------------------- |
+| `fps`                       | `30`           | Fotogramas por segundo                                    |
+| `clear_anim_flash_interval` | `0.05`         | Intervalo de parpadeo al limpiar líneas (segundos)        |
+| `clear_anim_duration`       | `0.3`          | Duración de la animación de limpieza de líneas (segundos) |
 
 #### game_rules
 
 Parámetros de jugabilidad.
 
-| Clave                        | Predeterminado | Descripción                         |
-| -------------------------- | ------- | ----------------------------------- |
-| `max_lock_down_move_count` | `15`    | Movimientos máximos antes de que la pieza se fije   |
-| `time_attack_duration`     | `120`   | Duración del modo Ataque al tiempo (segundos) |
+| Clave                      | Predeterminado | Descripción                                       |
+| -------------------------- | -------------- | ------------------------------------------------- |
+| `max_lock_down_move_count` | `15`           | Movimientos máximos antes de que la pieza se fije |
+| `time_attack_duration`     | `120`          | Duración del modo Ataque al tiempo (segundos)     |
 
 ### Licencia
 
