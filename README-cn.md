@@ -1,5 +1,5 @@
 ![gameplay](./gameplay.gif)  
-[English](README.md) | [中文](README-cn.md)
+[English](README.md) | [中文](README-cn.md) | [Spanish](README.es-ES.md)
 
 # Tetris Terminal🎮
 
