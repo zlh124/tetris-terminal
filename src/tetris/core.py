@@ -12,7 +12,7 @@ import time
 from collections import deque
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, Optional
 
 from .config import Config
 from .constants import (
@@ -186,6 +186,7 @@ class TetrisCore:
         lock_down_callback: Callable[[int], Any],
         game_over_callback: Callable[[str, SettlementMessage], Any],
         seed: int | None = None,
+        tetrimino_generator: Optional[Generator[Tetrimino, None, None]] = None,
     ) -> None:
         """Initialise the game core.
 
@@ -198,12 +199,34 @@ class TetrisCore:
                 the game ends.
             seed: Optional random seed for deterministic piece sequences
                 (used by versus mode).
+            tetrimino_generator: advanced feature, for the tetrimino queue generation
         """
         self._game_mode = game_mode
         self._config = config
         self._lock_down_callback = lock_down_callback
         self._game_over_callback = game_over_callback
-        self._seed: int | None = seed
+
+        if seed is not None:
+            random.seed(seed)
+
+        if tetrimino_generator is None:
+
+            def _generator() -> Generator[Tetrimino, None, None]:
+                queue: deque[Tetrimino] = deque()
+                while True:
+                    if not queue:
+                        batch = [
+                            Tetrimino(s) for s in TetriminoShape.normal_tetriminos()
+                        ]
+                        random.shuffle(batch)
+                        queue.extend(batch)
+                    yield queue.popleft()
+
+            tetrimino_generator = _generator()
+
+        self._tetrimino_generator: Generator[Tetrimino, None, None] = (
+            tetrimino_generator
+        )
 
         # Multiplayer
         self.garbage_queue = 0  # pending garbage line count
@@ -271,9 +294,8 @@ class TetrisCore:
 
     def _replenish_bag(self) -> None:
         """Add 7 shuffled tetriminos to the bag (one of each shape)."""
-        tmp = [Tetrimino(shape) for shape in TetriminoShape.normal_tetriminos()]
-        random.shuffle(tmp)
-        self.bag.extend(tmp)
+        for _ in range(7):
+            self.bag.append(next(self._tetrimino_generator))
 
     def _init_bag(self) -> None:
         """Fill the bag with two cycles (14 pieces) at game start."""
@@ -951,14 +973,19 @@ class TetrisCore:
             self._apply_incoming_garbage()
 
     def _init_game(self) -> None:
-        """Initialise bag, timers, and first piece.
-
-        If a seed was provided, the random number generator is seeded
-        before bag initialisation so both versus-mode players get
-        identical piece sequences.
-        """
-        if self._seed is not None:
-            random.seed(self._seed)
+        """Initialise bag, timers, and first piece."""
+        # when versus mode, reset configs about gameplay.
+        if self._game_mode == GameMode.VERSUS:
+            default_config = Config()
+            self._config.timing.clear_anim_flash_interval = (
+                default_config.timing.clear_anim_flash_interval
+            )
+            self._config.timing.clear_anim_duration = (
+                default_config.timing.clear_anim_duration
+            )
+            self._config.game_rules.max_lock_down_move_count = (
+                default_config.game_rules.max_lock_down_move_count
+            )
         if self._game_mode == GameMode.DIGGING:
             self._init_digging_mode()
         self._init_bag()
