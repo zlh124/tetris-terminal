@@ -1,15 +1,23 @@
 name: Create GitHub Release
 
+# 触发时机：master 上 pyproject.toml 有改动，且其中的版本号对应的 Release 还不存在。
+# 不再由「手动 push tag」触发 —— tag（vX.Y.Z）由本 workflow 在创建 Release 时自动创建。
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [master]
+    paths:
+      - 'pyproject.toml'
+      - '.github/workflows/release.yaml'
+  # 手动兜底：如需补发历史版本，可在 master 上手动触发
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   release:
+    # 只允许 master，避免从其他分支手动触发时把 tag 打到错误的 commit 上
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -25,40 +33,58 @@ jobs:
       - name: Install tomli
         run: python -m pip install tomli
 
-      - name: Verify tag matches pyproject.toml version
+      - name: Read version from pyproject.toml
+        id: version
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          FILE_VERSION=$(python -c "import tomli; print(tomli.load(open('pyproject.toml','rb'))['project']['version'])")
-          echo "Tag version: $TAG_VERSION"
-          echo "File version: $FILE_VERSION"
-          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
-            echo "Error: tag version ($TAG_VERSION) != pyproject.toml version ($FILE_VERSION)"
-            exit 1
+          VERSION=$(python -c "import tomli; print(tomli.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "pyproject.toml version: $VERSION -> tag v$VERSION"
+
+      - name: Check if this version was released already
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG already exists -> version unchanged, skipping release."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG not found -> proceeding with release."
           fi
 
       - name: Generate release body
         id: changelog
+        if: steps.check.outputs.exists == 'false'
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          PREV_TAG=$(git tag --list 'v*' --sort=-v:refname | head -2 | tail -1 || echo "")
+          TAG="${{ steps.version.outputs.tag }}"
+          # 上一个已发布的 tag；排除当前版本，兼容「tag 已建但 Release 缺失」的重跑场景
+          PREV_TAG=$(git tag --list 'v*' --sort=-v:refname | grep -vxF "$TAG" | head -1 || echo "")
           if [ -z "$PREV_TAG" ]; then
             RANGE="HEAD"
           else
-            RANGE="$PREV_TAG..$TAG"
+            RANGE="$PREV_TAG..HEAD"
           fi
+          echo "Changelog range: $RANGE"
           {
-            echo "body<<EOF"
+            echo "body<<RELEASE_BODY_EOF"
             echo "## What's Changed"
             echo ""
             git log "$RANGE" --no-merges --pretty=format:"- %s (%h)"
             echo ""
             echo ""
             echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...$TAG"
-            EOF
+            echo "RELEASE_BODY_EOF"
           } >> "$GITHUB_OUTPUT"
 
       - name: Create Release
+        if: steps.check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           body: ${{ steps.changelog.outputs.body }}
           make_latest: true
