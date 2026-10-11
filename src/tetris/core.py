@@ -10,9 +10,10 @@ from __future__ import annotations
 import random
 import time
 from collections import deque
-from datetime import datetime, timedelta
+from collections.abc import Callable, Generator, Iterator
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Generator, Optional
+from typing import Any
 
 from .config import Config
 from .constants import (
@@ -46,9 +47,8 @@ class Tetrimino:
             (x + dx, y + dy) for (x, y) in SHAPE_TABLE[shape]
         ]
 
-    def __iter__(self) -> Generator[tuple[int, int], Any, None]:
-        for x, y in self.bodies:
-            yield x, y
+    def __iter__(self) -> Iterator[tuple[int, int]]:
+        yield from self.bodies
 
     def __getitem__(self, index: int) -> tuple[int, int]:
         return self.bodies[index]
@@ -109,7 +109,7 @@ class TetrisCore:
             Total seconds the game has been running.
         """
         if self._running_since is not None:
-            elapsed = self._elapsed + (datetime.now() - self._running_since)
+            elapsed = self._elapsed + (datetime.now(UTC) - self._running_since)
         else:
             elapsed = self._elapsed
         return elapsed.total_seconds()
@@ -135,7 +135,7 @@ class TetrisCore:
             Formatted remaining-time string (``"00:00:00"`` when expired).
         """
         if self._running_since is not None:
-            elapsed = self._elapsed + (datetime.now() - self._running_since)
+            elapsed = self._elapsed + (datetime.now(UTC) - self._running_since)
         else:
             elapsed = self._elapsed
         remaining = (
@@ -186,7 +186,7 @@ class TetrisCore:
         lock_down_callback: Callable[[int], Any],
         game_over_callback: Callable[[str, SettlementMessage], Any],
         seed: int | None = None,
-        tetrimino_generator: Optional[Generator[Tetrimino, None, None]] = None,
+        tetrimino_generator: Generator[Tetrimino, None, None] | None = None,
     ) -> None:
         """Initialise the game core.
 
@@ -236,7 +236,7 @@ class TetrisCore:
         self.lines = 0
         self.level = 1
         self._elapsed = timedelta(0)
-        self._running_since: datetime | None = datetime.now()
+        self._running_since: datetime | None = datetime.now(UTC)
         self._lines_for_level = 0
 
         # settlement
@@ -749,7 +749,7 @@ class TetrisCore:
         if (
             self._game_mode == GameMode.TIME_ATTACK
             and self._running_since is not None
-            and (self._elapsed + (datetime.now() - self._running_since)).total_seconds()
+            and (self._elapsed + (datetime.now(UTC) - self._running_since)).total_seconds()
             >= self._config.game_rules.time_attack_duration
         ):
             self._game_over_callback("game over!", self._get_current_settlement())
@@ -760,8 +760,7 @@ class TetrisCore:
             self.level += 1
 
         # endless max level 30
-        if self.level > 30:
-            self.level = 30
+        self.level = min(self.level, 30)
 
         # max level 15
         if self._game_mode != GameMode.ENDLESS and self.level > 15:
@@ -1017,7 +1016,7 @@ class TetrisCore:
         if (
             self._game_mode == GameMode.TIME_ATTACK
             and self._running_since is not None
-            and (self._elapsed + (datetime.now() - self._running_since)).total_seconds()
+            and (self._elapsed + (datetime.now(UTC) - self._running_since)).total_seconds()
             >= self._config.game_rules.time_attack_duration
         ):
             self._game_over_callback("game over!", self._get_current_settlement())
@@ -1191,10 +1190,10 @@ class TetrisCore:
         self.paused = not self.paused
         if self.paused:
             if self._running_since is not None:
-                self._elapsed += datetime.now() - self._running_since
+                self._elapsed += datetime.now(UTC) - self._running_since
                 self._running_since = None
         else:
-            self._running_since = datetime.now()
+            self._running_since = datetime.now(UTC)
 
     def controllable(self) -> bool:
         """Return ``True`` if the core should process player input.

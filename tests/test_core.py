@@ -18,7 +18,7 @@ deterministic. No third-party dependencies are introduced.
 from __future__ import annotations
 
 from copy import copy
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -101,7 +101,7 @@ def frozen_clock(monkeypatch, start: datetime | None = None):
     forward. Lets pause/time tests drive elapsed time deterministically
     without real sleeping.
     """
-    state = {"now": start or datetime(2026, 1, 1)}
+    state = {"now": start or datetime(2026, 1, 1, tzinfo=UTC)}
 
     class FakeDateTime:
         @classmethod
@@ -1019,7 +1019,7 @@ class TestLeveling:
             mode=GameMode.TIME_ATTACK, over=lambda title, msg: over.append(title)
         )
         duration = core._config.game_rules.time_attack_duration
-        fixed = datetime(2026, 1, 1)
+        fixed = datetime(2026, 1, 1, tzinfo=UTC)
         freeze_now(monkeypatch, fixed)
         core._running_since = fixed
         core._elapsed = timedelta(seconds=duration)
@@ -1032,7 +1032,7 @@ class TestLeveling:
             mode=GameMode.TIME_ATTACK, over=lambda title, msg: over.append(title)
         )
         duration = core._config.game_rules.time_attack_duration
-        fixed = datetime(2026, 1, 1)
+        fixed = datetime(2026, 1, 1, tzinfo=UTC)
         freeze_now(monkeypatch, fixed)
         core._running_since = fixed
         core._elapsed = timedelta(seconds=duration)

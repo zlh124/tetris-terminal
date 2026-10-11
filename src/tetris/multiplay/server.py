@@ -77,7 +77,7 @@ class Room:
             asyncio.create_task(self._relay(self.players[0], self.players[1])),
             asyncio.create_task(self._relay(self.players[1], self.players[0])),
         ]
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        _, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in pending:
             task.cancel()
         await self._cleanup()

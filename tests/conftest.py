@@ -3,7 +3,7 @@
 import asyncio
 import contextlib
 import socket
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import pytest_asyncio
 

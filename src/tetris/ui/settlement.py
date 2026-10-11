@@ -6,7 +6,7 @@ import curses
 
 from ..config import Config
 from ..settlement_message import SettlementMessage
-from ..utils import draw_win_border
+from .utils import draw_win_border
 
 
 class Settlement:
@@ -48,9 +48,9 @@ class Settlement:
         _, width = window.getmaxyx()
         width -= 2
 
-        window.addstr(2, 1, "┏━┓┏━┓┏┳┓┏━   ┏━┓╻ ╻┏━┏━┓".center(width))
-        window.addstr(3, 1, "┃ ┳┣━┫┃┃┃┣━   ┃ ┃┗┓┃┣━┣┳┛".center(width))
-        window.addstr(4, 1, "┗━┛╹ ╹╹╹╹┗━   ┗━┛ ┗┛┗━┛┗╸".center(width))
+        window.addstr(2, 1, "┏━┛ ┏━┃ ┏┏  ┏━┛  ┏━┃ ┃ ┃ ┏━┛ ┏━┃".center(width))
+        window.addstr(3, 1, "┃ ┃ ┏━┃ ┃┃┃ ┏━┛  ┃ ┃ ┃ ┃ ┏━┛ ┏┏┛".center(width))
+        window.addstr(4, 1, "━━┛ ┛ ┛ ┛┛┛ ━━┛  ━━┛  ┛  ━━┛ ┛ ┛".center(width))
         window.refresh()
 
     def _draw_show(self) -> None:

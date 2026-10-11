@@ -35,9 +35,11 @@ def _wait_for_port(port: int, timeout: float = 5.0) -> None:
     """Poll *port* with a raw TCP connect until the server is reachable."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        with contextlib.suppress(OSError):
-            with socket.create_connection(("127.0.0.1", port), timeout=0.3):
-                return
+        with (
+            contextlib.suppress(OSError),
+            socket.create_connection(("127.0.0.1", port), timeout=0.3),
+        ):
+            return
         time.sleep(0.05)
     raise RuntimeError(f"server did not start on port {port} within {timeout}s")
 

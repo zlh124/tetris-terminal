@@ -8,7 +8,8 @@ from ..config import Config
 from ..enums import Sections, WebClientMsgType
 from ..logger import logger
 from ..multiplay.network import NetworkClient
-from ..utils import clear_win_without_border, draw_win_border, get_version
+from ..utils import get_version
+from .utils import clear_win_without_border, draw_win_border
 
 
 class Menu:
@@ -116,9 +117,9 @@ class Menu:
         _, width = window.getmaxyx()
         width -= 2
 
-        window.addstr(2, 1, "╺┳━┳━━┳━┳━┳┳┳━╸  ╺┳━┳━┏━┓┏┳┓┳┏┓┏━┓╻ ".center(width))
-        window.addstr(3, 1, " ┃ ┣━ ┃ ┣┳┛┃┗━┓   ┃ ┣━┣┳┛┃┃┃┃┃┃┣━┫┃ ".center(width))
-        window.addstr(4, 1, " ╹ ┗━ ╹ ╹┗╸┻╺━┛   ╹ ┗━┛┗━┛╹┗┻┛┗┛ ╹┗╸".center(width))
+        window.addstr(2, 1, "━┏┛  ┏━┛  ━┏┛  ┏━┃  ━┏┛  ┏━┛".center(width))
+        window.addstr(3, 1, " ┃   ┏━┛   ┃   ┏┏┛   ┃   ━━┃".center(width))
+        window.addstr(4, 1, " ┛   ━━┛   ┛   ┛ ┛  ━━┛  ━━┛".center(width))
         window.refresh()
 
     def _draw_sections(self) -> None:

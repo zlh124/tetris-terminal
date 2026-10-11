@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -32,7 +32,7 @@ def setup_from_config(config: LoggingConfig) -> None:
 
     log_dir = Path(config.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
-    filename = datetime.now().strftime("tetris-%Y%m%d-%H%M%S.log")
+    filename = datetime.now(UTC).strftime("tetris-%Y%m%d-%H%M%S.log")
     filepath = log_dir / filename
 
     handler = logging.FileHandler(filepath, encoding="utf-8")

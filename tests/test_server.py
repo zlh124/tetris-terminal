@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-from typing import Union
 
 import pytest
 import websockets
@@ -58,7 +57,7 @@ async def _recv_raw(
 
 async def _connect(
     port: int, *, version: str | None = None
-) -> tuple[websockets.ClientConnection, Union[str, dict]]:
+) -> tuple[websockets.ClientConnection, str | dict]:
     """Connect to a server and perform the version handshake.
 
     Args:
@@ -133,7 +132,7 @@ class TestMatchmaking:
     async def test_server_full_rejects(self, server_full: int) -> None:
         """The third player should be rejected when max_rooms=1."""
         ws1, _ = await _connect(server_full)
-        ws2, _ = await _connect(server_full)
+        _, _ = await _connect(server_full)
 
         # first two matched
         msg = await _recv_json(ws1)
@@ -201,7 +200,7 @@ class TestVersionHandshake:
 
     async def test_version_mismatch_rejected(self, server: int) -> None:
         """A client with a mismatched version should receive an ERROR message."""
-        ws, msg = await _connect(server, version="0.0.0")
+        _, msg = await _connect(server, version="0.0.0")
         assert isinstance(msg, dict), "msg is not a dict"
         assert msg["type"] == WebClientMsgType.ERROR
         assert "mismatch" in msg["data"]["message"]
