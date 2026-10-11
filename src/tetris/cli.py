@@ -5,13 +5,13 @@ from __future__ import annotations
 import argparse
 import curses
 import sys
-from typing import Callable
+from collections.abc import Callable
 
 from .config import Config
 from .logger import logger, setup_from_config
+from .ui.main import GameMode, Tetris
 from .ui.menu import Menu, Sections
 from .ui.settlement import Settlement
-from .ui.main import GameMode, Tetris
 from .utils import get_version
 
 

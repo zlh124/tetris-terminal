@@ -11,9 +11,8 @@ from importlib.metadata import PackageNotFoundError
 
 import pytest
 
-import tetris.utils as utils
+from tetris import utils
 from tetris.utils import get_version
-
 
 # ---------------------------------------------------------------------------
 # get_version

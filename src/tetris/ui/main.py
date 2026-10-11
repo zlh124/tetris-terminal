@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import curses
 import time
-
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..multiplay.network import NetworkClient
@@ -29,10 +28,10 @@ from ..constants import (
     SHOW_OFFSET,
     SOFT_DROP,
 )
+from ..core import TetrisCore
 from ..enums import GameMode, TetriminoShape, WebClientMsgType
 from ..settlement_message import SettlementMessage
-from ..utils import draw_win_border, clear_win_without_border
-from ..core import TetrisCore
+from .utils import clear_win_without_border, draw_win_border
 
 
 class Tetris:
@@ -428,8 +427,7 @@ class Tetris:
             frame_time = current_time - last_time
             last_time = current_time
 
-            if frame_time > MAX_FRAME_TIME:
-                frame_time = MAX_FRAME_TIME
+            frame_time = min(frame_time, MAX_FRAME_TIME)
 
             self._handle_input()
             self._handle_network()
@@ -469,7 +467,7 @@ class Tetris:
             )
         curses.init_pair(TetriminoShape.CLEAR.value, curses.COLOR_WHITE, -1)
 
-    def _get_color(self, shape: Optional[TetriminoShape]) -> int:
+    def _get_color(self, shape: TetriminoShape | None) -> int:
         """Return the curses colour attribute for a given shape.
 
         Args:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import IntEnum, StrEnum
 
+
 # fmt: off
 class TetriminoShape(IntEnum):
     """Tetrimino piece identifier (matches standard Tetris piece numbering)."""
@@ -11,10 +12,10 @@ class TetriminoShape(IntEnum):
     EMPTY   = 0
     Z       = 1
     S       = 2
-    O       = 3  # noqa: E741
+    O       = 3
     J       = 4
     T       = 5
-    I       = 6  # noqa: E741
+    I       = 6
     L       = 7
     GARBAGE = 8  # Garbage Tetrimino
     CLEAR   = 9  # Cells in rows pending line-clear animation
